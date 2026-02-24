@@ -1,0 +1,222 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 20 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 10% 10%;
+
+    /* Orange primary: #F26522 */
+    --primary: 24 89% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 24 20% 95%;
+    --secondary-foreground: 20 10% 10%;
+
+    --muted: 24 15% 95%;
+    --muted-foreground: 20 10% 45%;
+
+    --accent: 24 80% 92%;
+    --accent-foreground: 24 89% 35%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 24 30% 75%;
+    --input: 24 30% 75%;
+    --ring: 24 89% 54%;
+
+    --radius: 0.375rem;
+
+    --sidebar-background: 24 15% 97%;
+
+    --sidebar-foreground: 20 10% 10%;
+
+    --sidebar-primary: 24 89% 54%;
+
+    --sidebar-primary-foreground: 0 0% 100%;
+
+    --sidebar-accent: 24 80% 92%;
+
+    --sidebar-accent-foreground: 24 89% 35%;
+
+    --sidebar-border: 24 30% 80%;
+
+    --sidebar-ring: 24 89% 54%;
+
+    --chart-1: 24 89% 54%;
+
+    --chart-2: 173 58% 39%;
+
+    --chart-3: 197 37% 24%;
+
+    --chart-4: 43 74% 66%;
+
+    --chart-5: 27 87% 67%;
+
+    --sidebar: 24 15% 97%;
+
+    --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+
+    --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+
+    --font-mono: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+    --shadow-2xs: 1px 1px 0px 0px hsl(24 89% 54% / 0.3);
+
+    --shadow-xs: 2px 2px 0px 0px hsl(24 89% 54% / 0.3);
+
+    --shadow-sm: 3px 3px 0px 0px hsl(24 89% 54% / 0.25);
+
+    --shadow: 5px 5px 0px 0px hsl(24 89% 54% / 0.2);
+
+    --shadow-md: 8px 8px 0px 0px hsl(24 89% 54% / 0.15);
+
+    --shadow-lg: 12px 12px 0px 0px hsl(24 89% 54% / 0.12);
+
+    --shadow-xl: 16px 16px 0px 0px hsl(24 89% 54% / 0.1);
+
+    --shadow-2xl: 24px 24px 0px 0px hsl(24 89% 54% / 0.08);
+
+    --tracking-normal: 0em;
+
+    --spacing: 0.25rem;
+  }
+
+  .dark {
+    --background: 20 10% 8%;
+    --foreground: 0 0% 95%;
+
+    --card: 20 10% 10%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 20 10% 10%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 24 89% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 20 10% 18%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 20 10% 18%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 24 60% 22%;
+    --accent-foreground: 24 89% 70%;
+
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 24 20% 25%;
+    --input: 24 20% 25%;
+    --ring: 24 89% 54%;
+    --sidebar-background: 20 10% 6%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 24 89% 54%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 24 60% 18%;
+    --sidebar-accent-foreground: 24 89% 70%;
+    --sidebar-border: 24 20% 20%;
+    --sidebar-ring: 24 89% 54%;
+    --chart-1: 24 89% 60%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar: 20 10% 6%;
+    --radius: 0.375rem;
+    --shadow-2xs: 1px 1px 0px 0px hsl(24 89% 54% / 0.4);
+    --shadow-xs: 2px 2px 0px 0px hsl(24 89% 54% / 0.4);
+    --shadow-sm: 3px 3px 0px 0px hsl(24 89% 54% / 0.35);
+    --shadow: 5px 5px 0px 0px hsl(24 89% 54% / 0.3);
+    --shadow-md: 8px 8px 0px 0px hsl(24 89% 54% / 0.25);
+    --shadow-lg: 12px 12px 0px 0px hsl(24 89% 54% / 0.2);
+    --shadow-xl: 16px 16px 0px 0px hsl(24 89% 54% / 0.15);
+    --shadow-2xl: 24px 24px 0px 0px hsl(24 89% 54% / 0.1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+/* ── KLS Grid custom animations ── */
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px 2px hsl(24 89% 54% / 0.4); }
+  50%       { box-shadow: 0 0 22px 6px hsl(24 89% 54% / 0.75); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-glow {
+  animation: glow-pulse 2.4s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.animate-slide-in {
+  animation: slide-in 0.35s ease-out both;
+}
+
+/* Glow on primary buttons */
+button[class*="bg-primary"]:not(:disabled):hover,
+button.glow-btn:not(:disabled):hover {
+  box-shadow: 0 0 18px 4px hsl(24 89% 54% / 0.55);
+  transition: box-shadow 0.25s ease;
+}
+
+/* Glow ring on focused inputs */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(24 89% 54% / 0.35), 0 0 12px 2px hsl(24 89% 54% / 0.2);
+  border-color: hsl(24 89% 54%) !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+/* Glowing card on hover */
+.card-glow:hover {
+  box-shadow: 0 0 0 1px hsl(24 89% 54% / 0.3), 0 4px 24px hsl(24 89% 54% / 0.18);
+  transition: box-shadow 0.3s ease;
+}
+
+/* Subtle animated underline for active badges */
+@keyframes badge-glow {
+  0%, 100% { box-shadow: 0 0 4px 1px hsl(24 89% 54% / 0.5); }
+  50%       { box-shadow: 0 0 12px 3px hsl(24 89% 54% / 0.85); }
+}
+
+.badge-active {
+  animation: badge-glow 1.8s ease-in-out infinite;
+}
