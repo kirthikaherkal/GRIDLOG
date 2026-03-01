@@ -6,11 +6,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { getActiveSession, getStudentSessions, checkIn, checkOut, type Student, type Session, getStudentAuth, clearStudentAuth } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { LogOut, Clock, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import KlsGridLogo from "@/components/KlsGridLogo";
+
+const API_BASE = "http://127.0.0.1:8000";
+
+type Student = {
+  id: string;
+  name: string;
+  labId: string;
+  department: string;
+};
+
+type Session = {
+  id: number;
+  student_lab_id: string;
+  check_in_time: string;
+  check_out_time: string | null;
+  description: string | null;
+};
 
 function wordCount(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -25,44 +41,111 @@ function duration(checkIn: string, checkOut: string) {
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
+
   const [student, setStudent] = useState<Student | null>(null);
   const [active, setActive] = useState<Session | null>(null);
   const [description, setDescription] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
 
+  // ✅ LOAD USER + SESSIONS FROM BACKEND
   useEffect(() => {
-    // Try persistent auth first, then fall back to sessionStorage
-    const raw = getStudentAuth() || sessionStorage.getItem("currentStudent");
-    if (!raw) { navigate("/student"); return; }
-    const s: Student = JSON.parse(raw);
-    setStudent(s);
-    setActive(getActiveSession(s.id));
-    setSessions(getStudentSessions(s.id));
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/student");
+      return;
+    }
+
+    const loadData = async () => {
+      try {
+        const meRes = await fetch(`${API_BASE}/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!meRes.ok) throw new Error();
+        const me = await meRes.json();
+
+        const mapped: Student = {
+          id: me.lab_id,
+          name: me.name,
+          labId: me.lab_id,
+          department: me.department,
+        };
+
+        setStudent(mapped);
+
+        const sessRes = await fetch(`${API_BASE}/my-sessions`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const sessData = await sessRes.json();
+        setSessions(sessData);
+
+        const activeSession = sessData.find(
+          (s: Session) => s.check_out_time === null
+        );
+        setActive(activeSession || null);
+
+      } catch {
+        localStorage.removeItem("token");
+        navigate("/student");
+      }
+    };
+
+    loadData();
   }, [navigate]);
 
   const words = useMemo(() => wordCount(description), [description]);
   const canCheckOut = words >= 10;
 
-  const handleCheckIn = () => {
-    if (!student) return;
-    const session = checkIn(student.id);
+  // ✅ CHECK IN → BACKEND
+  const handleCheckIn = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const res = await fetch(`${API_BASE}/checkin`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const session = await res.json();
+
     setActive(session);
-    setSessions(getStudentSessions(student.id));
-    toast({ title: "Checked in!", description: `Time: ${format(new Date(session.checkInTime), "hh:mm a")}` });
+    setSessions((prev) => [session, ...prev]);
+
+    toast({
+      title: "Checked in!",
+      description: `Time: ${format(new Date(session.check_in_time), "hh:mm a")}`,
+    });
   };
 
-  const handleCheckOut = () => {
+  // ✅ CHECK OUT → BACKEND
+  const handleCheckOut = async () => {
     if (!active) return;
-    checkOut(active.id, description);
+
+    const token = localStorage.getItem("token");
+
+    await fetch(`${API_BASE}/checkout/${active.id}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ description }),
+    });
+
+    const updatedSessions = await fetch(`${API_BASE}/my-sessions`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json());
+
+    setSessions(updatedSessions);
     setActive(null);
     setDescription("");
-    if (student) setSessions(getStudentSessions(student.id));
+
     toast({ title: "Checked out!" });
   };
 
   const handleLogout = () => {
-    clearStudentAuth();
-    sessionStorage.removeItem("currentStudent");
+    localStorage.removeItem("token");
     navigate("/student");
   };
 
@@ -71,21 +154,31 @@ const StudentDashboard = () => {
   return (
     <main className="min-h-screen bg-background p-4 sm:p-6">
       <div className="mx-auto max-w-3xl">
-        {/* Header */}
+
+        {/* HEADER (UNCHANGED UI) */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Button variant="ghost" size="sm" className="mb-1 gap-1 px-0" onClick={() => navigate("/")}>
               <ArrowLeft className="h-4 w-4" /> Home
             </Button>
+
             <div className="flex items-center gap-3">
               <KlsGridLogo variant="badge" height={28} />
               <div>
                 <h1 className="text-2xl font-bold">{student.name}</h1>
-                <p className="font-mono text-sm text-muted-foreground">{student.labId} · {student.department}</p>
+                <p className="font-mono text-sm text-muted-foreground">
+                  {student.labId} · {student.department}
+                </p>
               </div>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="gap-1 border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground" onClick={handleLogout}>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1 border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            onClick={handleLogout}
+          >
             <LogOut className="h-4 w-4" /> Logout
           </Button>
         </div>
@@ -96,7 +189,7 @@ const StudentDashboard = () => {
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
-          {/* Current Session */}
+          {/* CURRENT SESSION */}
           <TabsContent value="session">
             {!active ? (
               <Card className="border-2 border-border shadow-sm">
@@ -114,27 +207,23 @@ const StudentDashboard = () => {
               <Card className="border-2 border-border shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-primary text-primary-foreground animate-pulse">Checked In</Badge>
+                    <Badge className="bg-primary text-primary-foreground animate-pulse">
+                      Checked In
+                    </Badge>
                     <span className="text-sm font-normal text-muted-foreground">
-                      {format(new Date(active.checkInTime), "hh:mm a, MMM d")}
+                      {format(new Date(active.check_in_time), "hh:mm a, MMM d")}
                     </span>
                   </CardTitle>
                 </CardHeader>
+
                 <CardContent className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium">
-                      Work Description{" "}
-                      <span className={`font-mono ${canCheckOut ? "text-primary" : "text-destructive"}`}>
-                        ({words}/10 words)
-                      </span>
-                    </label>
-                    <Textarea
-                      rows={6}
-                      placeholder="Describe the work you did in this session (minimum 10 words)..."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                    />
-                  </div>
+                  <Textarea
+                    rows={6}
+                    placeholder="Describe the work you did in this session (minimum 10 words)..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+
                   <Button
                     className="w-full shadow-sm"
                     disabled={!canCheckOut}
@@ -142,25 +231,23 @@ const StudentDashboard = () => {
                   >
                     Check Out
                   </Button>
-                  {!canCheckOut && (
-                    <p className="text-center text-sm text-muted-foreground">
-                      Write at least 10 words to check out ({10 - words} more needed)
-                    </p>
-                  )}
                 </CardContent>
               </Card>
             )}
           </TabsContent>
 
-          {/* History */}
+          {/* HISTORY */}
           <TabsContent value="history">
             <Card className="border-2 border-border shadow-sm">
               <CardHeader>
                 <CardTitle>Session History</CardTitle>
               </CardHeader>
+
               <CardContent>
-                {sessions.filter((s) => s.checkOutTime).length === 0 ? (
-                  <p className="py-8 text-center text-muted-foreground">No past sessions yet.</p>
+                {sessions.filter(s => s.check_out_time).length === 0 ? (
+                  <p className="py-8 text-center text-muted-foreground">
+                    No past sessions yet.
+                  </p>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -171,19 +258,20 @@ const StudentDashboard = () => {
                         <TableHead>Duration</TableHead>
                       </TableRow>
                     </TableHeader>
+
                     <TableBody>
                       {sessions
-                        .filter((s) => s.checkOutTime)
-                        .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime())
+                        .filter(s => s.check_out_time)
                         .map((s) => (
                           <TableRow key={s.id}>
-                            <TableCell>{format(new Date(s.checkInTime), "MMM d, yyyy")}</TableCell>
-                            <TableCell>{format(new Date(s.checkInTime), "hh:mm a")}</TableCell>
-                            <TableCell>{format(new Date(s.checkOutTime!), "hh:mm a")}</TableCell>
-                            <TableCell>{duration(s.checkInTime, s.checkOutTime!)}</TableCell>
+                            <TableCell>{format(new Date(s.check_in_time), "MMM d, yyyy")}</TableCell>
+                            <TableCell>{format(new Date(s.check_in_time), "hh:mm a")}</TableCell>
+                            <TableCell>{format(new Date(s.check_out_time!), "hh:mm a")}</TableCell>
+                            <TableCell>{duration(s.check_in_time, s.check_out_time!)}</TableCell>
                           </TableRow>
                         ))}
                     </TableBody>
+
                   </Table>
                 )}
               </CardContent>

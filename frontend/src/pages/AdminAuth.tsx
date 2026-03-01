@@ -4,41 +4,68 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAdmin, registerAdmin, loginAdmin, getAdminAuth, setAdminAuth } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 import KlsGridLogo from "@/components/KlsGridLogo";
 
+const API_BASE = "http://127.0.0.1:8000";
+
 const AdminAuth = () => {
   const navigate = useNavigate();
-  const [adminExists, setAdminExists] = useState(false);
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
+  // ✅ auto login if token exists
   useEffect(() => {
-    // Auto-login if valid session exists
-    if (getAdminAuth()) { navigate("/admin/dashboard"); return; }
-    setAdminExists(getAdmin() !== null);
-  }, [navigate]);
+  const adminToken = localStorage.getItem("admin_token");
+  if (adminToken) navigate("/admin/dashboard");
+}, [navigate]);
 
-  const handleRegister = () => {
-    if (!username || !password) {
-      toast({ title: "All fields are required", variant: "destructive" });
+  const handleLogin = async () => {
+  if (!username || !password) {
+    toast({ title: "All fields are required", variant: "destructive" });
+    return;
+  }
+
+  try {
+    const formData = new URLSearchParams();
+    formData.append("username", username);
+    formData.append("password", password);
+    formData.append("grant_type", "password");
+
+    const res = await fetch(`${API_BASE}/admin/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: formData.toString(),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      toast({
+        title: data.detail || "Invalid credentials",
+        variant: "destructive",
+      });
       return;
     }
-    registerAdmin(username, password);
-    setAdminExists(true);
-    toast({ title: "Admin account created!" });
-  };
 
-  const handleLogin = () => {
-    if (loginAdmin(username, password)) {
-      setAdminAuth();
-      navigate("/admin/dashboard");
-    } else {
-      toast({ title: "Invalid credentials", variant: "destructive" });
-    }
-  };
+    // ✅ CRITICAL FIX — clear student session
+    localStorage.removeItem("token");          // student JWT
+    sessionStorage.removeItem("currentStudent");
+
+    // ✅ store admin token
+    localStorage.setItem("admin_token", data.access_token);
+
+    toast({ title: "Login successful" });
+    navigate("/admin/dashboard");
+
+  } catch {
+    toast({ title: "Server error", variant: "destructive" });
+  }
+};
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
@@ -52,27 +79,25 @@ const AdminAuth = () => {
 
       <Card className="w-full max-w-md border-2 border-border shadow-sm">
         <CardHeader>
-          <CardTitle>{adminExists ? "Admin Login" : "Admin Setup"}</CardTitle>
+          <CardTitle>Admin Login</CardTitle>
           <CardDescription>
-            {adminExists
-              ? "Log in with your admin credentials"
-              : "Create the one-time admin account"}
+            Log in with administrator credentials
           </CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Username</Label>
             <Input value={username} onChange={(e) => setUsername(e.target.value)} />
           </div>
+
           <div className="space-y-2">
             <Label>Password</Label>
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-          <Button
-            className="w-full shadow-sm"
-            onClick={adminExists ? handleLogin : handleRegister}
-          >
-            {adminExists ? "Login" : "Create Admin Account"}
+
+          <Button className="w-full shadow-sm" onClick={handleLogin}>
+            Login
           </Button>
         </CardContent>
       </Card>
