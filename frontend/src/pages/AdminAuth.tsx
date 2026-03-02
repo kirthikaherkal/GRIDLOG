@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 import KlsGridLogo from "@/components/KlsGridLogo";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://gridlog-zgmu.onrender.com";
 
 const AdminAuth = () => {
   const navigate = useNavigate();

@@ -11,7 +11,7 @@ import { LogOut, Clock, ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import KlsGridLogo from "@/components/KlsGridLogo";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "https://gridlog-zgmu.onrender.com";
 
 type Student = {
   id: string;
