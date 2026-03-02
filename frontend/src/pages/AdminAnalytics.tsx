@@ -1,10 +1,10 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import {
-  BarChart, Bar, LineChart, Line,
+  BarChart, Bar,
   PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, CartesianGrid,
-  ResponsiveContainer, Legend
+  XAxis, YAxis, Tooltip,
+  CartesianGrid, ResponsiveContainer, Legend
 } from "recharts";
 
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,10 @@ import KlsGridLogo from "@/components/KlsGridLogo";
 /* ================= MOCK DATA ================= */
 
 const studentActivity = [
-  { name: "Omkar", sessions: 12 },
-  { name: "Kirthika", sessions: 9 },
-  { name: "Rahul", sessions: 6 },
-  { name: "Asha", sessions: 4 },
-];
-
-const labUsage = [
-  { day: "Mon", visits: 12 },
-  { day: "Tue", visits: 18 },
-  { day: "Wed", visits: 9 },
-  { day: "Thu", visits: 22 },
-  { day: "Fri", visits: 15 },
+  { name: "Omkar", sessions: 12, type: "Regular", dept: "Mechanical" },
+  { name: "Kirthika", sessions: 9, type: "Regular", dept: "CSE" },
+  { name: "Rahul", sessions: 6, type: "Irregular", dept: "ECE" },
+  { name: "Asha", sessions: 4, type: "Irregular", dept: "Mechanical" },
 ];
 
 const regularity = [
@@ -42,55 +34,59 @@ const departmentUsage = [
 
 const COLORS = ["#6366f1", "#22c55e", "#f97316", "#ef4444"];
 
+/* ===== MOCK SESSION HISTORY (WHAT YOU REQUESTED) ===== */
+
+const sessionHistory: any = {
+  Omkar: [
+    { date: "2026-03-01", hours: 3, desc: "Worked on rover SLAM calibration" },
+    { date: "2026-02-27", hours: 2, desc: "Sensor debugging and wiring" },
+  ],
+  Kirthika: [
+    { date: "2026-03-02", hours: 4, desc: "AI training dataset cleanup" },
+  ],
+  Rahul: [
+    { date: "2026-02-25", hours: 1, desc: "PCB testing" },
+  ],
+  Asha: [
+    { date: "2026-02-20", hours: 2, desc: "3D printing enclosure" },
+  ],
+};
+
 /* ================= PAGE ================= */
 
 const AdminAnalytics = () => {
   const navigate = useNavigate();
 
-  // ✅ NEW STATES
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
 
-  /* ================= PROFILE VIEW ================= */
+  /* ================= PROFILE VIEW (FIXED) ================= */
 
-  const ProfileView = ({ person }: any) => (
-    <Card className="mt-4 border-2">
-      <CardHeader>
-        <CardTitle>{person.name} — Individual Analytics</CardTitle>
-      </CardHeader>
+  const ProfileView = ({ person }: any) => {
+    const sessions = sessionHistory[person.name] || [];
 
-      <CardContent className="grid gap-6 md:grid-cols-2">
+    return (
+      <Card className="mt-4 border-2">
+        <CardHeader>
+          <CardTitle>{person.name} — Work History</CardTitle>
+        </CardHeader>
 
-        {/* Sessions trend */}
-        <div className="h-[250px]">
-          <ResponsiveContainer>
-            <LineChart data={labUsage}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Line dataKey="visits" stroke="#6366f1" strokeWidth={3}/>
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Regularity pie */}
-        <div className="h-[250px]">
-          <ResponsiveContainer>
-            <PieChart>
-              <Pie data={regularity} dataKey="value" outerRadius={90}>
-                {regularity.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-      </CardContent>
-    </Card>
-  );
+        <CardContent className="space-y-3">
+          {sessions.length === 0 ? (
+            <p>No activity recorded.</p>
+          ) : (
+            sessions.map((s: any, i: number) => (
+              <div key={i} className="border rounded-lg p-3">
+                <p><b>Date:</b> {s.date}</p>
+                <p><b>Hours Worked:</b> {s.hours} hrs</p>
+                <p><b>Description:</b> {s.desc}</p>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   /* ================= EXPANDED VIEW ================= */
 
@@ -99,18 +95,30 @@ const AdminAnalytics = () => {
 
     let dataset: any[] = [];
 
-    if (expandedChart === "students") dataset = studentActivity;
-    if (expandedChart === "department") dataset = departmentUsage;
-    if (expandedChart === "regularity") dataset = regularity;
+    if (expandedChart === "students")
+      dataset = studentActivity;
+
+    if (expandedChart === "regularity")
+      dataset = studentActivity.filter(
+        s => s.type === selectedEntity?.name
+      );
+
+    if (expandedChart === "department")
+      dataset = studentActivity.filter(
+        s => s.dept === selectedEntity?.dept
+      );
 
     return (
       <div className="fixed inset-0 z-50 bg-background/95 p-6 overflow-auto">
         <div className="mx-auto max-w-6xl space-y-6">
 
-          <Button variant="outline" onClick={()=>{
-            setExpandedChart(null);
-            setSelectedEntity(null);
-          }}>
+          <Button
+            variant="outline"
+            onClick={()=>{
+              setExpandedChart(null);
+              setSelectedEntity(null);
+            }}
+          >
             Close
           </Button>
 
@@ -119,16 +127,13 @@ const AdminAnalytics = () => {
               <CardTitle>Detailed View</CardTitle>
             </CardHeader>
 
-            {/* ✅ scrollable large dataset container */}
             <CardContent className="max-h-[400px] overflow-y-auto space-y-2">
               {dataset.map((item, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between border rounded-lg p-3"
                 >
-                  <span className="font-medium">
-                    {item.name || item.dept}
-                  </span>
+                  <span className="font-medium">{item.name}</span>
 
                   <Button
                     size="sm"
@@ -141,8 +146,9 @@ const AdminAnalytics = () => {
             </CardContent>
           </Card>
 
-          {/* Individual analytics */}
-          {selectedEntity && <ProfileView person={selectedEntity}/>}
+          {selectedEntity?.name && (
+            <ProfileView person={selectedEntity}/>
+          )}
         </div>
       </div>
     );
@@ -153,21 +159,19 @@ const AdminAnalytics = () => {
       <div className="mx-auto max-w-6xl space-y-6">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between">
-          <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-1 gap-1 px-0"
-              onClick={() => navigate("/admin/dashboard")}
-            >
-              <ArrowLeft className="h-4 w-4" /> Back
-            </Button>
+        <div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-1 gap-1 px-0"
+            onClick={() => navigate("/admin/dashboard")}
+          >
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
 
-            <div className="flex items-center gap-3">
-              <KlsGridLogo variant="badge" height={28} />
-              <h1 className="text-2xl font-bold">Lab Analytics</h1>
-            </div>
+          <div className="flex items-center gap-3">
+            <KlsGridLogo variant="badge" height={28} />
+            <h1 className="text-2xl font-bold">Lab Analytics</h1>
           </div>
         </div>
 
@@ -176,61 +180,43 @@ const AdminAnalytics = () => {
         <div className="grid gap-6 md:grid-cols-2">
 
           {/* ACTIVE STUDENTS */}
-          <Card className="border-2 cursor-pointer"
+          <Card
+            className="border-2 cursor-pointer"
             onClick={()=>setExpandedChart("students")}
           >
             <CardHeader>
               <CardTitle>Most Active Students</CardTitle>
             </CardHeader>
+
             <CardContent className="h-[300px]">
               <ResponsiveContainer>
-                <BarChart
-                  data={studentActivity}
-                  onClick={(e:any)=>{
-                    if(e?.activePayload)
-                      setSelectedEntity(e.activePayload[0].payload);
-                  }}
-                >
+                <BarChart data={studentActivity}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name"/>
                   <YAxis/>
                   <Tooltip/>
-                  <Bar dataKey="sessions" fill="#6366f1" radius={[6,6,0,0]}/>
+                  <Bar dataKey="sessions" fill="#6366f1"/>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* WEEKLY USAGE */}
-          <Card className="border-2 cursor-pointer"
-            onClick={()=>setExpandedChart("usage")}
-          >
-            <CardHeader>
-              <CardTitle>Weekly Lab Usage</CardTitle>
-            </CardHeader>
-            <CardContent className="h-[300px]">
-              <ResponsiveContainer>
-                <LineChart data={labUsage}>
-                  <CartesianGrid strokeDasharray="3 3"/>
-                  <XAxis dataKey="day"/>
-                  <YAxis/>
-                  <Tooltip/>
-                  <Line dataKey="visits" stroke="#22c55e" strokeWidth={3}/>
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
           {/* REGULARITY */}
-          <Card className="border-2 cursor-pointer"
-            onClick={()=>setExpandedChart("regularity")}
-          >
+          <Card className="border-2">
             <CardHeader>
               <CardTitle>Student Regularity</CardTitle>
             </CardHeader>
+
             <CardContent className="h-[300px]">
               <ResponsiveContainer>
-                <PieChart>
+                <PieChart
+                  onClick={(e:any)=>{
+                    if(e?.activePayload){
+                      setSelectedEntity(e.activePayload[0].payload);
+                      setExpandedChart("regularity");
+                    }
+                  }}
+                >
                   <Pie data={regularity} dataKey="value" outerRadius={100}>
                     {regularity.map((_, i) =>
                       <Cell key={i} fill={COLORS[i]}/>
@@ -244,20 +230,28 @@ const AdminAnalytics = () => {
           </Card>
 
           {/* DEPARTMENT */}
-          <Card className="border-2 cursor-pointer"
-            onClick={()=>setExpandedChart("department")}
-          >
+          <Card className="border-2">
             <CardHeader>
               <CardTitle>Department Usage</CardTitle>
             </CardHeader>
+
             <CardContent className="h-[300px]">
               <ResponsiveContainer>
-                <BarChart layout="vertical" data={departmentUsage}>
+                <BarChart
+                  layout="vertical"
+                  data={departmentUsage}
+                  onClick={(e:any)=>{
+                    if(e?.activePayload){
+                      setSelectedEntity(e.activePayload[0].payload);
+                      setExpandedChart("department");
+                    }
+                  }}
+                >
                   <CartesianGrid strokeDasharray="3 3"/>
                   <XAxis type="number"/>
                   <YAxis dataKey="dept" type="category"/>
                   <Tooltip/>
-                  <Bar dataKey="sessions" fill="#f97316" radius={[0,6,6,0]}/>
+                  <Bar dataKey="sessions" fill="#f97316"/>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -266,7 +260,6 @@ const AdminAnalytics = () => {
         </div>
       </div>
 
-      {/* ✅ Overlay system */}
       <ExpandedOverlay />
     </main>
   );
