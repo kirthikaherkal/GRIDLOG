@@ -112,14 +112,21 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(Admin))
-        existing_admin = result.scalar_one_or_none()
+    # prevent crash if admin env not set
+    if ADMIN_USERNAME and ADMIN_PASSWORD:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(Admin))
+            existing_admin = result.scalar_one_or_none()
 
-        if not existing_admin:
-            hashed = pwd_context.hash(ADMIN_PASSWORD[:72])
-            db.add(Admin(username=ADMIN_USERNAME, password=hashed))
-            await db.commit()
+            if not existing_admin:
+                hashed = pwd_context.hash(ADMIN_PASSWORD[:72])
+                db.add(Admin(username=ADMIN_USERNAME, password=hashed))
+                await db.commit()
+
+# ---------------- HEALTH CHECK (RENDER REQUIRED) ----------------
+@app.get("/healthz")
+async def health():
+    return {"status": "ok"}
 
 # ---------------- HELPERS ----------------
 async def generate_lab_id(db: AsyncSession):
@@ -138,8 +145,9 @@ async def generate_lab_id(db: AsyncSession):
 
 def create_access_token(data: dict):
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    data.update({"exp": expire})
-    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+    to_encode = data.copy()
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 async def get_current_user(
@@ -280,10 +288,7 @@ async def my_sessions(current_user: Student = Depends(get_current_user),
 
     return result.scalars().all()
 
-# =====================================================
-# ✅ FIXED ADMIN ENDPOINTS (JOIN WITH STUDENTS)
-# =====================================================
-
+# ---------------- ADMIN ENDPOINTS ----------------
 @app.get("/admin/sessions")
 async def admin_sessions(db: AsyncSession = Depends(get_db)):
 
