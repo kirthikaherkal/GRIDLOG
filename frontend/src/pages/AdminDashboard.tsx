@@ -107,20 +107,24 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button size="sm" className="border-2" onClick={() => navigate("/admin/analytics")}>
-              View Analytics
-            </Button>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center">
+  <Button
+    size="sm"
+    className="border-2 w-full md:w-auto"
+    onClick={() => navigate("/admin/analytics")}
+  >
+    View Analytics
+  </Button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1 border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-              onClick={handleLogout}
-            >
-              <LogOut className="h-4 w-4" /> Logout
-            </Button>
-          </div>
+  <Button
+    variant="outline"
+    size="sm"
+    className="gap-1 border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground w-full md:w-auto"
+    onClick={handleLogout}
+  >
+    <LogOut className="h-4 w-4" /> Logout
+  </Button>
+</div>
         </div>
 
         {/* ACTIVE USERS */}
