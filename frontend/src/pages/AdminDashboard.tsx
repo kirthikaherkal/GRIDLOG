@@ -102,7 +102,7 @@ const AdminDashboard = () => {
             </Button>
 
             <div className="flex items-center gap-3">
-              <KlsGridLogo variant="badge" height={28} />
+      
               <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             </div>
           </div>
