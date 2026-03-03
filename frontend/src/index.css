@@ -220,3 +220,15 @@ textarea:focus-visible {
 .badge-active {
   animation: badge-glow 1.8s ease-in-out infinite;
 }
+
+/* -------- Mobile Layout Fix -------- */
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+}
