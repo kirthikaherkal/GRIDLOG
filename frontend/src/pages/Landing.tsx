@@ -46,7 +46,7 @@ const Landing = () => {
 
       <footer className="absolute bottom-4 flex items-center gap-2 text-xs text-muted-foreground">
         <KlsGridLogo variant="badge" height={18} />
-        <span>· Lab Management System</span>
+        <span>· Technical Team</span>
       </footer>
     </main>
   );

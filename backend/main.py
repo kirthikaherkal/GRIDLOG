@@ -1,25 +1,20 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, select
-from passlib.context import CryptContext
-from jose import jwt, JWTError
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
+import time
+import uuid
 
 # ---------------- ENV ----------------
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-SECRET_KEY = os.getenv("JWT_SECRET")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
-
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # ---------------- DB ----------------
 engine = create_async_engine(DATABASE_URL, echo=False)
@@ -41,16 +36,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------- SECURITY ----------------
-ALGORITHM = "HS256"
+# ---------------- RATE LIMIT ----------------
+RATE_LIMIT = 25
+RATE_WINDOW = 60
 
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=12
-)
+request_log = {}
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+def rate_limiter(request: Request):
+    ip = request.client.host
+    now = time.time()
+
+    if ip not in request_log:
+        request_log[ip] = []
+
+    request_log[ip] = [
+        t for t in request_log[ip]
+        if now - t < RATE_WINDOW
+    ]
+
+    if len(request_log[ip]) >= RATE_LIMIT:
+        raise HTTPException(429, "Too many requests")
+
+    request_log[ip].append(now)
+
+# ---------------- ADMIN SESSION STORE ----------------
+admin_sessions = {}
+
+def get_admin_session(request: Request):
+
+    session_id = request.cookies.get("admin_session")
+
+    if not session_id or session_id not in admin_sessions:
+        raise HTTPException(401, "Admin authentication required")
+
+    return admin_sessions[session_id]
 
 # ---------------- MODELS ----------------
 class Student(Base):
@@ -73,13 +92,6 @@ class Admin(Base):
     password = Column(String)
 
 
-class Counter(Base):
-    __tablename__ = "counters"
-
-    id = Column(Integer, primary_key=True)
-    seq = Column(Integer, default=0)
-
-
 class Session(Base):
     __tablename__ = "sessions"
 
@@ -90,14 +102,6 @@ class Session(Base):
     description = Column(Text, nullable=True)
 
 # ---------------- SCHEMAS ----------------
-class RegisterModel(BaseModel):
-    name: str
-    usn: str
-    year: str
-    department: str
-    password: str
-
-
 class CheckoutModel(BaseModel):
     description: str
 
@@ -112,144 +116,93 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # prevent crash if admin env not set
-    if ADMIN_USERNAME and ADMIN_PASSWORD:
-        async with AsyncSessionLocal() as db:
-            result = await db.execute(select(Admin))
-            existing_admin = result.scalar_one_or_none()
-
-            if not existing_admin:
-                hashed = pwd_context.hash(ADMIN_PASSWORD[:72])
-                db.add(Admin(username=ADMIN_USERNAME, password=hashed))
-                await db.commit()
-
-# ---------------- HEALTH CHECK (RENDER REQUIRED) ----------------
+# ---------------- HEALTH CHECK ----------------
 @app.get("/healthz")
 async def health():
     return {"status": "ok"}
 
-# ---------------- HELPERS ----------------
-async def generate_lab_id(db: AsyncSession):
-    result = await db.execute(select(Counter))
-    counter = result.scalar_one_or_none()
-
-    if not counter:
-        counter = Counter(seq=1)
-        db.add(counter)
-    else:
-        counter.seq += 1
-
-    await db.commit()
-    return f"LAB-{counter.seq:02d}"
-
-
-def create_access_token(data: dict):
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = data.copy()
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+# ---------------- STUDENT LOGIN ----------------
+@app.post("/login")
+async def login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        lab_id = payload.get("sub")
 
-        result = await db.execute(
-            select(Student).where(Student.lab_id == lab_id)
-        )
-        user = result.scalar_one_or_none()
-
-        if not user:
-            raise HTTPException(401, "Invalid token")
-
-        return user
-
-    except JWTError:
-        raise HTTPException(401, "Invalid token")
-
-# ---------------- STUDENT AUTH ----------------
-@app.post("/register")
-async def register(student: RegisterModel, db: AsyncSession = Depends(get_db)):
-
-    result = await db.execute(select(Student).where(Student.usn == student.usn))
-    if result.scalar_one_or_none():
-        raise HTTPException(400, "USN already registered")
-
-    lab_id = await generate_lab_id(db)
-    hashed_password = pwd_context.hash(student.password[:72])
-
-    db.add(Student(
-        lab_id=lab_id,
-        name=student.name,
-        usn=student.usn,
-        year=student.year,
-        department=student.department,
-        password=hashed_password
-    ))
-
-    await db.commit()
-    return {"lab_id": lab_id}
-
-
-@app.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends(),
-                db: AsyncSession = Depends(get_db)):
+    rate_limiter(request)
 
     result = await db.execute(
         select(Student).where(Student.lab_id == form_data.username)
     )
     student = result.scalar_one_or_none()
 
-    if not student or not pwd_context.verify(form_data.password[:72], student.password):
+    if not student:
         raise HTTPException(401, "Invalid credentials")
 
-    token = create_access_token({"sub": student.lab_id})
+    if form_data.password != student.password:
+        raise HTTPException(401, "Invalid credentials")
 
-    return {"access_token": token, "token_type": "bearer"}
-
+    return {
+        "lab_id": student.lab_id,
+        "name": student.name,
+        "department": student.department
+    }
 
 # ---------------- ADMIN LOGIN ----------------
 @app.post("/admin/login")
 async def admin_login(
+    request: Request,
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
+
+    rate_limiter(request)
 
     result = await db.execute(
         select(Admin).where(Admin.username == form_data.username)
     )
     admin = result.scalar_one_or_none()
 
-    if not admin or not pwd_context.verify(form_data.password[:72], admin.password):
+    if not admin:
         raise HTTPException(401, "Invalid credentials")
 
-    token = create_access_token({
-        "sub": admin.username,
-        "role": "admin"
-    })
+    if form_data.password != admin.password:
+        raise HTTPException(401, "Invalid credentials")
 
-    return {"access_token": token, "token_type": "bearer"}
+    session_id = str(uuid.uuid4())
+    admin_sessions[session_id] = admin.username
 
+    response.set_cookie(
+        key="admin_session",
+        value=session_id,
+        httponly=True,
+        secure=True,
+        samesite="lax"
+    )
 
-@app.get("/me")
-async def get_me(current_user: Student = Depends(get_current_user)):
-    return {
-        "lab_id": current_user.lab_id,
-        "name": current_user.name,
-        "usn": current_user.usn,
-        "department": current_user.department
-    }
+    return {"message": "Admin login successful"}
 
 # ---------------- SESSION SYSTEM ----------------
-@app.post("/checkin")
-async def checkin(current_user: Student = Depends(get_current_user),
-                  db: AsyncSession = Depends(get_db)):
+@app.post("/checkin/{lab_id}")
+async def checkin(
+    request: Request,
+    lab_id: str,
+    db: AsyncSession = Depends(get_db)
+):
 
-    session = Session(student_lab_id=current_user.lab_id)
+    rate_limiter(request)
+
+    result = await db.execute(
+        select(Student).where(Student.lab_id == lab_id)
+    )
+    student = result.scalar_one_or_none()
+
+    if not student:
+        raise HTTPException(404, "Student not found")
+
+    session = Session(student_lab_id=student.lab_id)
+
     db.add(session)
     await db.commit()
     await db.refresh(session)
@@ -258,12 +211,18 @@ async def checkin(current_user: Student = Depends(get_current_user),
 
 
 @app.post("/checkout/{session_id}")
-async def checkout(session_id: int,
-                   body: CheckoutModel,
-                   current_user: Student = Depends(get_current_user),
-                   db: AsyncSession = Depends(get_db)):
+async def checkout(
+    request: Request,
+    session_id: int,
+    body: CheckoutModel,
+    db: AsyncSession = Depends(get_db)
+):
 
-    result = await db.execute(select(Session).where(Session.id == session_id))
+    rate_limiter(request)
+
+    result = await db.execute(
+        select(Session).where(Session.id == session_id)
+    )
     session = result.scalar_one_or_none()
 
     if not session:
@@ -273,16 +232,22 @@ async def checkout(session_id: int,
     session.description = body.description
 
     await db.commit()
+
     return {"message": "Checked out"}
 
+# ---------------- STUDENT SESSION HISTORY ----------------
+@app.get("/student/{lab_id}/sessions")
+async def student_sessions(
+    request: Request,
+    lab_id: str,
+    db: AsyncSession = Depends(get_db)
+):
 
-@app.get("/my-sessions")
-async def my_sessions(current_user: Student = Depends(get_current_user),
-                      db: AsyncSession = Depends(get_db)):
+    rate_limiter(request)
 
     result = await db.execute(
         select(Session)
-        .where(Session.student_lab_id == current_user.lab_id)
+        .where(Session.student_lab_id == lab_id)
         .order_by(Session.check_in_time.desc())
     )
 
@@ -290,7 +255,13 @@ async def my_sessions(current_user: Student = Depends(get_current_user),
 
 # ---------------- ADMIN ENDPOINTS ----------------
 @app.get("/admin/sessions")
-async def admin_sessions(db: AsyncSession = Depends(get_db)):
+async def admin_sessions(
+    request: Request,
+    admin = Depends(get_admin_session),
+    db: AsyncSession = Depends(get_db)
+):
+
+    rate_limiter(request)
 
     result = await db.execute(
         select(Session, Student)
@@ -319,7 +290,13 @@ async def admin_sessions(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/admin/active")
-async def admin_active_sessions(db: AsyncSession = Depends(get_db)):
+async def admin_active_sessions(
+    request: Request,
+    admin = Depends(get_admin_session),
+    db: AsyncSession = Depends(get_db)
+):
+
+    rate_limiter(request)
 
     result = await db.execute(
         select(Session, Student)

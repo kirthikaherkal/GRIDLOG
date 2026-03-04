@@ -23,8 +23,8 @@ const StudentAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) navigate("/student/dashboard",{replace:true});
+    const student = localStorage.getItem("student"); // ✅ CHANGED
+    if (student) navigate("/student/dashboard",{replace:true});
   }, []);
 
   const [name,setName]=useState("");
@@ -40,29 +40,12 @@ const StudentAuth = () => {
   const extractErrorMessage=(data:any)=>
     typeof data?.detail==="string"?data.detail:"Request failed";
 
-  // REGISTER
+  // REGISTER (disabled because backend removed)
   const handleRegister=async()=>{
-    const res=await fetch(`${API_BASE}/register`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        name:name.trim(),
-        usn:usn.trim().toUpperCase(),
-        year,
-        department,
-        password:regPassword.trim()
-      })
+    toast({
+      title:"Registration disabled",
+      description:"Students must be added directly in database"
     });
-
-    const data=await res.json();
-
-    if(!res.ok){
-      toast({title:extractErrorMessage(data),variant:"destructive"});
-      return;
-    }
-
-    setNewLabId(data.lab_id);
-    toast({title:"Registered Successfully"});
   };
 
   // LOGIN
@@ -87,9 +70,9 @@ const StudentAuth = () => {
       return;
     }
 
-    localStorage.setItem("token",data.access_token);
+    // ✅ CHANGED (store student info instead of token)
+    localStorage.setItem("student",JSON.stringify(data));
 
-    // important navigation fix
     setTimeout(()=>{
       navigate("/student/dashboard",{replace:true});
     },50);
@@ -128,7 +111,6 @@ const StudentAuth = () => {
             </CardContent>
           </Card>
         ):(
-          /* YOUR ORIGINAL UI EXACTLY SAME */
           <Tabs defaultValue="login">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Login</TabsTrigger>
@@ -153,7 +135,6 @@ const StudentAuth = () => {
               </Card>
             </TabsContent>
 
-            {/* REGISTER UI UNCHANGED */}
             <TabsContent value="register">
               <Card>
                 <CardHeader>
