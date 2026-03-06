@@ -32,12 +32,12 @@ text-transparent bg-clip-text bg-gradient-to-r from-white to-white
 drop-shadow-xl">
           <br />
         
-         <b> GRID LOG</b>
+         <b> GRIDLOG</b>
         </h1>
 
         {/* subtitle */}
         <p className="mt-6 mb-10 text-lg md:text-xl text-gray-200 font-semibold hover:text-white transition-colors duration-300">
-          Tracks attendance and work logs.
+          Student Attendence Logs
         </p>
 
         {/* Buttons */}
