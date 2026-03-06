@@ -15,12 +15,10 @@ const Landing = () => {
         </div>
 
         <h1 className="mb-2 text-4xl font-bold tracking-tight text-foreground">
-          College Lab
-          <br />
-          Record Maintainer
+          GRIDLOG
         </h1>
         <p className="mb-10 text-lg text-muted-foreground">
-          Track attendance and work logs for your college lab sessions.
+          Students record maintainer
         </p>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-center">

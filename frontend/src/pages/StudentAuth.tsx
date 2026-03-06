@@ -23,7 +23,7 @@ const StudentAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const student = localStorage.getItem("student"); // ✅ CHANGED
+    const student = localStorage.getItem("student");
     if (student) navigate("/student/dashboard",{replace:true});
   }, []);
 
@@ -40,11 +40,11 @@ const StudentAuth = () => {
   const extractErrorMessage=(data:any)=>
     typeof data?.detail==="string"?data.detail:"Request failed";
 
-  // REGISTER (disabled because backend removed)
+  // REGISTER disabled
   const handleRegister=async()=>{
     toast({
       title:"Registration disabled",
-      description:"Students must be added directly in database"
+      description:"Students are added manually by admin"
     });
   };
 
@@ -70,15 +70,12 @@ const StudentAuth = () => {
       return;
     }
 
-    // ✅ CHANGED (store student info instead of token)
     localStorage.setItem("student",JSON.stringify(data));
 
     setTimeout(()=>{
       navigate("/student/dashboard",{replace:true});
     },50);
   };
-
-  /* ---------- UI BELOW UNCHANGED ---------- */
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
@@ -112,9 +109,8 @@ const StudentAuth = () => {
           </Card>
         ):(
           <Tabs defaultValue="login">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
@@ -135,6 +131,7 @@ const StudentAuth = () => {
               </Card>
             </TabsContent>
 
+            {/* REGISTER TAB KEPT BUT NEVER ACCESSIBLE */}
             <TabsContent value="register">
               <Card>
                 <CardHeader>

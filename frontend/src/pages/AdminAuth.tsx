@@ -16,60 +16,66 @@ const AdminAuth = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  // ✅ auto login if token exists
+  // ✅ Auto-login ONLY if admin_token exists
   useEffect(() => {
-  const adminToken = localStorage.getItem("admin_token");
-  if (adminToken) navigate("/admin/dashboard");
-}, [navigate]);
+    const adminToken = localStorage.getItem("admin_token");
+    if (adminToken) {
+      navigate("/admin/dashboard");
+    }
+  }, [navigate]);
 
   const handleLogin = async () => {
-  if (!username || !password) {
-    toast({ title: "All fields are required", variant: "destructive" });
-    return;
-  }
-
-  try {
-    const formData = new URLSearchParams();
-    formData.append("username", username);
-    formData.append("password", password);
-    formData.append("grant_type", "password");
-
-    const res = await fetch(`${API_BASE}/admin/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: formData.toString(),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      toast({
-        title: data.detail || "Invalid credentials",
-        variant: "destructive",
-      });
+    if (!username || !password) {
+      toast({ title: "All fields are required", variant: "destructive" });
       return;
     }
 
-    // ✅ CRITICAL FIX — clear student session
-    localStorage.removeItem("token");          // student JWT
-    sessionStorage.removeItem("currentStudent");
+    try {
+      const formData = new URLSearchParams();
+      formData.append("username", username);
+      formData.append("password", password);
+      formData.append("grant_type", "password");
 
-    // ✅ store admin token
-    localStorage.setItem("admin_token", data.access_token);
+      const res = await fetch(`${API_BASE}/admin/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData.toString(),
+      });
 
-    toast({ title: "Login successful" });
-    navigate("/admin/dashboard");
+      const data = await res.json();
 
-  } catch {
-    toast({ title: "Server error", variant: "destructive" });
-  }
-};
+      if (!res.ok) {
+        toast({
+          title: data.detail || "Invalid credentials",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // ✅ Clear student session completely
+      localStorage.removeItem("token");
+      sessionStorage.removeItem("currentStudent");
+
+      // ✅ Store ONLY admin token
+      localStorage.setItem("admin_token", data.access_token);
+
+      toast({ title: "Login successful" });
+      navigate("/admin/dashboard");
+
+    } catch (error) {
+      toast({ title: "Server error", variant: "destructive" });
+    }
+  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
-      <Button variant="ghost" className="absolute left-4 top-4 gap-1" onClick={() => navigate("/")}>
+      <Button
+        variant="ghost"
+        className="absolute left-4 top-4 gap-1"
+        onClick={() => navigate("/")}
+      >
         <ArrowLeft className="h-4 w-4" /> Back
       </Button>
 
@@ -88,15 +94,25 @@ const AdminAuth = () => {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Username</Label>
-            <Input value={username} onChange={(e) => setUsername(e.target.value)} />
+            <Input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">
             <Label>Password</Label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
 
-          <Button className="w-full shadow-sm" onClick={handleLogin}>
+          <Button
+            className="w-full shadow-sm"
+            onClick={handleLogin}
+          >
             Login
           </Button>
         </CardContent>

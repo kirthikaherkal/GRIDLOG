@@ -47,64 +47,50 @@ const StudentDashboard = () => {
   const [description, setDescription] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
 
-  // ✅ LOAD USER + SESSIONS FROM BACKEND
+  // LOAD USER FROM LOCAL STORAGE
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    const stored = localStorage.getItem("student");
+
+    if (!stored) {
       navigate("/student");
       return;
     }
 
-    const loadData = async () => {
-      try {
-        const meRes = await fetch(`${API_BASE}/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    const parsed = JSON.parse(stored);
 
-        if (!meRes.ok) throw new Error();
-        const me = await meRes.json();
-
-        const mapped: Student = {
-          id: me.lab_id,
-          name: me.name,
-          labId: me.lab_id,
-          department: me.department,
-        };
-
-        setStudent(mapped);
-
-        const sessRes = await fetch(`${API_BASE}/my-sessions`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const sessData = await sessRes.json();
-        setSessions(sessData);
-
-        const activeSession = sessData.find(
-          (s: Session) => s.check_out_time === null
-        );
-        setActive(activeSession || null);
-
-      } catch {
-        localStorage.removeItem("token");
-        navigate("/student");
-      }
+    const mapped: Student = {
+      id: parsed.lab_id,
+      name: parsed.name,
+      labId: parsed.lab_id,
+      department: parsed.department,
     };
 
-    loadData();
+    setStudent(mapped);
+
+    // load sessions
+    fetch(`${API_BASE}/student/${parsed.lab_id}/sessions`)
+      .then(r => r.json())
+      .then(data => {
+        setSessions(data);
+
+        const activeSession = data.find(
+          (s: Session) => s.check_out_time === null
+        );
+
+        setActive(activeSession || null);
+      });
+
   }, [navigate]);
 
   const words = useMemo(() => wordCount(description), [description]);
   const canCheckOut = words >= 10;
 
-  // ✅ CHECK IN → BACKEND
+  // CHECK IN
   const handleCheckIn = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!student) return;
 
-    const res = await fetch(`${API_BASE}/checkin`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
+    const res = await fetch(`${API_BASE}/checkin/${student.labId}`, {
+      method: "POST"
     });
 
     const session = await res.json();
@@ -118,24 +104,21 @@ const StudentDashboard = () => {
     });
   };
 
-  // ✅ CHECK OUT → BACKEND
+  // CHECK OUT
   const handleCheckOut = async () => {
-    if (!active) return;
-
-    const token = localStorage.getItem("token");
+    if (!active || !student) return;
 
     await fetch(`${API_BASE}/checkout/${active.id}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ description }),
     });
 
-    const updatedSessions = await fetch(`${API_BASE}/my-sessions`, {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then((r) => r.json());
+    const updatedSessions = await fetch(
+      `${API_BASE}/student/${student.labId}/sessions`
+    ).then((r) => r.json());
 
     setSessions(updatedSessions);
     setActive(null);
@@ -145,7 +128,7 @@ const StudentDashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    localStorage.removeItem("student");
     navigate("/student");
   };
 
@@ -155,7 +138,7 @@ const StudentDashboard = () => {
     <main className="min-h-screen bg-background p-4 sm:p-6">
       <div className="mx-auto max-w-3xl">
 
-        {/* HEADER (UNCHANGED UI) */}
+        {/* HEADER */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Button variant="ghost" size="sm" className="mb-1 gap-1 px-0" onClick={() => navigate("/")}>
@@ -189,7 +172,6 @@ const StudentDashboard = () => {
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
-          {/* CURRENT SESSION */}
           <TabsContent value="session">
             {!active ? (
               <Card className="border-2 border-border shadow-sm">
@@ -236,7 +218,6 @@ const StudentDashboard = () => {
             )}
           </TabsContent>
 
-          {/* HISTORY */}
           <TabsContent value="history">
             <Card className="border-2 border-border shadow-sm">
               <CardHeader>
