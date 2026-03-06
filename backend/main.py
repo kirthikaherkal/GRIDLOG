@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, select
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, select, func
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from pydantic import BaseModel
@@ -160,7 +160,10 @@ async def register(student: RegisterModel, db: AsyncSession = Depends(get_db)):
     if result.scalar_one_or_none():
         raise HTTPException(400, "USN already registered")
 
-    lab_id = f"LAB-{str(uuid.uuid4())[:6].upper()}"
+    result = await db.execute(select(func.max(Student.id)))
+    max_id = result.scalar()
+    next_id = 1 if max_id is None else max_id + 1
+    lab_id = str(next_id)
 
     hashed_password = pwd_context.hash(student.password[:72])
 
