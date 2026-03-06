@@ -40,7 +40,6 @@ const StudentAuth = () => {
   const extractErrorMessage=(data:any)=>
     typeof data?.detail==="string"?data.detail:"Request failed";
 
-  // REGISTER disabled
   const handleRegister=async()=>{
     toast({
       title:"Registration disabled",
@@ -48,7 +47,6 @@ const StudentAuth = () => {
     });
   };
 
-  // LOGIN
   const handleLogin=async()=>{
     const formData=new URLSearchParams();
     formData.append("username",labId.trim().toUpperCase());
@@ -78,104 +76,121 @@ const StudentAuth = () => {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
-      <Button variant="ghost" className="absolute left-4 top-4 gap-1"
-        onClick={()=>navigate("/")}>
-        <ArrowLeft className="h-4 w-4"/> Back
-      </Button>
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-background p-6 overflow-hidden">
 
-      <div className="mb-6 flex justify-center">
-        <KlsGridLogo height={40}/>
-      </div>
+      {/* Background */}
+      <div
+        className="absolute inset-0 bg-cover bg-center scale-105 animate-bgSlowZoom"
+        style={{ backgroundImage: "url('/lab.jpg')" }}
+      />
 
-      <div className="w-full max-w-md">
-        {newLabId ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Registration Successful</CardTitle>
-              <CardDescription>Save your Lab ID</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded border p-6 text-center">
-                <p>Your Lab ID</p>
-                <p className="mt-2 font-mono text-3xl font-bold">
-                  {newLabId}
-                </p>
-              </div>
-              <Button className="w-full" onClick={()=>setNewLabId(null)}>
-                Go to Login
-              </Button>
-            </CardContent>
-          </Card>
-        ):(
-          <Tabs defaultValue="login">
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsTrigger value="login">Login</TabsTrigger>
-            </TabsList>
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60 backdrop-blur-[2px]" />
 
-            <TabsContent value="login">
-              <Card>
-                <CardHeader><CardTitle>Student Login</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <Label>Lab ID</Label>
-                  <Input value={labId}
-                    onChange={e=>setLabId(e.target.value)}/>
-                  <Label>Password</Label>
-                  <Input type="password"
-                    value={loginPassword}
-                    onChange={e=>setLoginPassword(e.target.value)}/>
-                  <Button className="w-full" onClick={handleLogin}>
-                    Login
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
+      {/* Content */}
+      <div className="relative z-10 w-full flex flex-col items-center">
 
-            {/* REGISTER TAB KEPT BUT NEVER ACCESSIBLE */}
-            <TabsContent value="register">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Student Registration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Label>Full Name</Label>
-                  <Input value={name}
-                    onChange={e=>setName(e.target.value)}/>
-                  <Label>USN</Label>
-                  <Input value={usn}
-                    onChange={e=>setUsn(e.target.value)}/>
-                  <Label>Year</Label>
-                  <Select value={year} onValueChange={setYear}>
-                    <SelectTrigger><SelectValue/></SelectTrigger>
-                    <SelectContent>
-                      {YEARS.map(y=>(
-                        <SelectItem key={y} value={y}>{y}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+        <Button
+          variant="ghost"
+          className="absolute left-4 top-4 gap-1 text-white hover:bg-white/10"
+          onClick={()=>navigate("/")}>
+          <ArrowLeft className="h-4 w-4"/> Back
+        </Button>
 
-                  <Label>Department</Label>
-                  <Select value={department} onValueChange={setDepartment}>
-                    <SelectTrigger><SelectValue/></SelectTrigger>
-                    <SelectContent>
-                      {DEPARTMENTS.map(d=>(
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+        <div className="mb-6 flex justify-center">
+          <KlsGridLogo height={40}/>
+        </div>
 
-                  <Label>Password</Label>
-                  <Input type="password"
-                    value={regPassword}
-                    onChange={e=>setRegPassword(e.target.value)}/>
-                  <Button className="w-full" onClick={handleRegister}>
-                    Register
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        )}
+        <div className="w-full max-w-md">
+          {newLabId ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Registration Successful</CardTitle>
+                <CardDescription>Save your Lab ID</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded border p-6 text-center">
+                  <p>Your Lab ID</p>
+                  <p className="mt-2 font-mono text-3xl font-bold">
+                    {newLabId}
+                  </p>
+                </div>
+                <Button className="w-full" onClick={()=>setNewLabId(null)}>
+                  Go to Login
+                </Button>
+              </CardContent>
+            </Card>
+          ):(
+            <Tabs defaultValue="login">
+              <TabsList className="grid w-full grid-cols-1">
+                <TabsTrigger value="login">Login</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="login">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Student Login</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Label>Lab ID</Label>
+                    <Input value={labId}
+                      onChange={e=>setLabId(e.target.value)}/>
+                    <Label>Password</Label>
+                    <Input type="password"
+                      value={loginPassword}
+                      onChange={e=>setLoginPassword(e.target.value)}/>
+                    <Button className="w-full" onClick={handleLogin}>
+                      Login
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="register">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Student Registration</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Label>Full Name</Label>
+                    <Input value={name}
+                      onChange={e=>setName(e.target.value)}/>
+                    <Label>USN</Label>
+                    <Input value={usn}
+                      onChange={e=>setUsn(e.target.value)}/>
+                    <Label>Year</Label>
+                    <Select value={year} onValueChange={setYear}>
+                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        {YEARS.map(y=>(
+                          <SelectItem key={y} value={y}>{y}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Label>Department</Label>
+                    <Select value={department} onValueChange={setDepartment}>
+                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                        {DEPARTMENTS.map(d=>(
+                          <SelectItem key={d} value={d}>{d}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Label>Password</Label>
+                    <Input type="password"
+                      value={regPassword}
+                      onChange={e=>setRegPassword(e.target.value)}/>
+                    <Button className="w-full" onClick={handleRegister}>
+                      Register
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          )}
+        </div>
       </div>
     </main>
   );
