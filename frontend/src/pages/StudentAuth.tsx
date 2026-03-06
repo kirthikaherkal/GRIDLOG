@@ -23,14 +23,15 @@ const StudentAuth = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const student = localStorage.getItem("student");
-    if (student) navigate("/student/dashboard",{replace:true});
+    const token = localStorage.getItem("token");
+    if (token) navigate("/student/dashboard",{replace:true});
   }, []);
 
   const [name,setName]=useState("");
   const [usn,setUsn]=useState("");
   const [year,setYear]=useState("");
   const [department,setDepartment]=useState("");
+  const [startup,setStartup]=useState("");   // ✅ added
   const [regPassword,setRegPassword]=useState("");
   const [newLabId,setNewLabId]=useState<string|null>(null);
 
@@ -41,10 +42,28 @@ const StudentAuth = () => {
     typeof data?.detail==="string"?data.detail:"Request failed";
 
   const handleRegister=async()=>{
-    toast({
-      title:"Registration disabled",
-      description:"Students are added manually by admin"
+    const res=await fetch(`${API_BASE}/register`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        name:name.trim(),
+        usn:usn.trim().toUpperCase(),
+        year,
+        department,
+        startup:startup.trim(),  // ✅ sent to backend
+        password:regPassword.trim()
+      })
     });
+
+    const data=await res.json();
+
+    if(!res.ok){
+      toast({title:extractErrorMessage(data),variant:"destructive"});
+      return;
+    }
+
+    setNewLabId(data.lab_id);
+    toast({title:"Registered Successfully"});
   };
 
   const handleLogin=async()=>{
@@ -68,7 +87,7 @@ const StudentAuth = () => {
       return;
     }
 
-    localStorage.setItem("student",JSON.stringify(data));
+    localStorage.setItem("token",data.access_token);
 
     setTimeout(()=>{
       navigate("/student/dashboard",{replace:true});
@@ -84,15 +103,15 @@ const StudentAuth = () => {
         style={{ backgroundImage: "url('/lab.jpg')" }}
       />
 
-      {/* Overlay */}
+      {/* overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60 backdrop-blur-[2px]" />
 
-      {/* Content */}
+      {/* content */}
       <div className="relative z-10 w-full flex flex-col items-center">
 
         <Button
           variant="ghost"
-          className="absolute left-4 top-4 gap-1 text-white hover:bg-white/10"
+          className="absolute left-4 top-4 gap-1"
           onClick={()=>navigate("/")}>
           <ArrowLeft className="h-4 w-4"/> Back
         </Button>
@@ -122,8 +141,9 @@ const StudentAuth = () => {
             </Card>
           ):(
             <Tabs defaultValue="login">
-              <TabsList className="grid w-full grid-cols-1">
+              <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login">Login</TabsTrigger>
+                <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
@@ -177,6 +197,10 @@ const StudentAuth = () => {
                         ))}
                       </SelectContent>
                     </Select>
+
+                    <Label>Startup Name</Label>
+                    <Input value={startup}
+                      onChange={e=>setStartup(e.target.value)}/>
 
                     <Label>Password</Label>
                     <Input type="password"

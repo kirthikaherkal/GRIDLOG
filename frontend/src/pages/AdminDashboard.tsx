@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,7 @@ type Student = {
   department: string;
   year: string;
   lab_id: string;
+  startup: string;
 };
 
 type Session = {
@@ -60,15 +61,17 @@ const AdminDashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        if (!allRes.ok || !activeRes.ok) {
+          throw new Error("Unauthorized");
+        }
+
         const allData = await allRes.json();
         const activeData = await activeRes.json();
 
-        // ✅ DIRECTLY USE BACKEND RESPONSE
         setSessions(allData);
         setActiveSessions(activeData);
 
-      } catch (err) {
-        console.error("Admin fetch error:", err);
+      } catch {
         localStorage.removeItem("admin_token");
         navigate("/admin");
       }
@@ -91,10 +94,19 @@ const AdminDashboard = () => {
   };
 
   return (
-    <main className="min-h-screen bg-background p-4 sm:p-6">
-      <div className="mx-auto max-w-5xl">
+    <main className="relative min-h-screen bg-background p-4 sm:p-6 overflow-hidden">
 
-        {/* HEADER */}
+      {/* Background */}
+      <div
+        className="absolute inset-0 bg-cover bg-center scale-105 animate-bgSlowZoom"
+        style={{ backgroundImage: "url('/lab.jpg')" }}
+      />
+
+      {/* overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60 backdrop-blur-[2px]" />
+
+      <div className="relative z-10 mx-auto max-w-5xl">
+
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Button variant="ghost" size="sm" className="mb-1 gap-1 px-0" onClick={() => navigate("/")}>
@@ -102,32 +114,30 @@ const AdminDashboard = () => {
             </Button>
 
             <div className="flex items-center gap-3">
-      
               <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             </div>
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
-  <Button
-    size="sm"
-    className="border-2 w-full md:w-auto"
-    onClick={() => navigate("/admin/analytics")}
-  >
-    View Analytics
-  </Button>
+            <Button
+              size="sm"
+              className="border-2 w-full md:w-auto"
+              onClick={() => navigate("/admin/analytics")}
+            >
+              View Analytics
+            </Button>
 
-  <Button
-    variant="outline"
-    size="sm"
-    className="gap-1 border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground w-full md:w-auto"
-    onClick={handleLogout}
-  >
-    <LogOut className="h-4 w-4" /> Logout
-  </Button>
-</div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground w-full md:w-auto"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" /> Logout
+            </Button>
+          </div>
         </div>
 
-        {/* ACTIVE USERS */}
         <Card className="mb-6 border-2 border-border shadow-sm">
           <CardHeader>
             <CardTitle>
@@ -164,7 +174,6 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* RECORDS */}
         <Card className="border-2 border-border shadow-sm">
           <CardHeader>
             <CardTitle>Records</CardTitle>

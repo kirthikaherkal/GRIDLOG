@@ -16,11 +16,11 @@ const AdminAuth = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  // ✅ Auto-login ONLY if admin_token exists
+  // ✅ Auto-login if JWT exists
   useEffect(() => {
-    const adminToken = localStorage.getItem("admin_token");
-    if (adminToken) {
-      navigate("/admin/dashboard");
+    const token = localStorage.getItem("admin_token");
+    if (token) {
+      navigate("/admin/dashboard", { replace: true });
     }
   }, [navigate]);
 
@@ -54,69 +54,83 @@ const AdminAuth = () => {
         return;
       }
 
-      // ✅ Clear student session completely
+      // Clear student JWT if exists
       localStorage.removeItem("token");
-      sessionStorage.removeItem("currentStudent");
 
-      // ✅ Store ONLY admin token
+      // Store admin JWT
       localStorage.setItem("admin_token", data.access_token);
 
       toast({ title: "Login successful" });
       navigate("/admin/dashboard");
 
-    } catch (error) {
+    } catch {
       toast({ title: "Server error", variant: "destructive" });
     }
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-6">
-      <Button
-        variant="ghost"
-        className="absolute left-4 top-4 gap-1"
-        onClick={() => navigate("/")}
-      >
-        <ArrowLeft className="h-4 w-4" /> Back
-      </Button>
+    <main className="relative flex min-h-screen flex-col items-center justify-center bg-background p-6 overflow-hidden">
 
-      <div className="mb-6 flex justify-center">
-        <KlsGridLogo height={40} />
+      {/* Background */}
+      <div
+        className="absolute inset-0 bg-cover bg-center scale-105 animate-bgSlowZoom"
+        style={{ backgroundImage: "url('/lab.jpg')" }}
+      />
+
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60 backdrop-blur-[2px]" />
+
+      <div className="relative z-10 w-full flex flex-col items-center">
+
+        {/* Back button unchanged */}
+        <Button
+          variant="ghost"
+          className="absolute left-4 top-4 gap-1"
+          onClick={() => navigate("/")}
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </Button>
+
+        <div className="mb-6 flex justify-center">
+          <KlsGridLogo height={40} />
+        </div>
+
+        <Card className="w-full max-w-md border-2 border-border shadow-sm">
+          <CardHeader>
+            <CardTitle>Admin Login</CardTitle>
+            <CardDescription>
+              Log in with administrator credentials
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <Input
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <Button
+              className="w-full shadow-sm"
+              onClick={handleLogin}
+            >
+              Login
+            </Button>
+          </CardContent>
+        </Card>
+
       </div>
-
-      <Card className="w-full max-w-md border-2 border-border shadow-sm">
-        <CardHeader>
-          <CardTitle>Admin Login</CardTitle>
-          <CardDescription>
-            Log in with administrator credentials
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Username</Label>
-            <Input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Password</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          <Button
-            className="w-full shadow-sm"
-            onClick={handleLogin}
-          >
-            Login
-          </Button>
-        </CardContent>
-      </Card>
     </main>
   );
 };

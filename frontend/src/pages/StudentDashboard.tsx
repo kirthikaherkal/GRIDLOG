@@ -14,10 +14,12 @@ import KlsGridLogo from "@/components/KlsGridLogo";
 const API_BASE = "https://gridlog-zgmu.onrender.com";
 
 type Student = {
-  id: string;
+  lab_id: string;
   name: string;
-  labId: string;
+  usn: string;
   department: string;
+  year: string;
+  startup: string;
 };
 
 type Session = {
@@ -47,36 +49,38 @@ const StudentDashboard = () => {
   const [description, setDescription] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
 
-  // LOAD USER FROM LOCAL STORAGE
   useEffect(() => {
-    const stored = localStorage.getItem("student");
+    const token = localStorage.getItem("token");
 
-    if (!stored) {
+    if (!token) {
       navigate("/student");
       return;
     }
 
-    const parsed = JSON.parse(stored);
+    // Load current user
+    fetch(`${API_BASE}/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then(data => setStudent(data))
+      .catch(() => {
+        localStorage.removeItem("token");
+        navigate("/student");
+      });
 
-    const mapped: Student = {
-      id: parsed.lab_id,
-      name: parsed.name,
-      labId: parsed.lab_id,
-      department: parsed.department,
-    };
-
-    setStudent(mapped);
-
-    // load sessions
-    fetch(`${API_BASE}/student/${parsed.lab_id}/sessions`)
+    // Load sessions
+    fetch(`${API_BASE}/my-sessions`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
       .then(r => r.json())
       .then(data => {
         setSessions(data);
-
         const activeSession = data.find(
           (s: Session) => s.check_out_time === null
         );
-
         setActive(activeSession || null);
       });
 
@@ -85,12 +89,13 @@ const StudentDashboard = () => {
   const words = useMemo(() => wordCount(description), [description]);
   const canCheckOut = words >= 10;
 
-  // CHECK IN
   const handleCheckIn = async () => {
-    if (!student) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
-    const res = await fetch(`${API_BASE}/checkin/${student.labId}`, {
-      method: "POST"
+    const res = await fetch(`${API_BASE}/checkin`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` }
     });
 
     const session = await res.json();
@@ -104,21 +109,25 @@ const StudentDashboard = () => {
     });
   };
 
-  // CHECK OUT
   const handleCheckOut = async () => {
-    if (!active || !student) return;
+    if (!active) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
     await fetch(`${API_BASE}/checkout/${active.id}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
       },
       body: JSON.stringify({ description }),
     });
 
     const updatedSessions = await fetch(
-      `${API_BASE}/student/${student.labId}/sessions`
-    ).then((r) => r.json());
+      `${API_BASE}/my-sessions`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).then(r => r.json());
 
     setSessions(updatedSessions);
     setActive(null);
@@ -128,17 +137,26 @@ const StudentDashboard = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("student");
+    localStorage.removeItem("token");
     navigate("/student");
   };
 
   if (!student) return null;
 
   return (
-    <main className="min-h-screen bg-background p-4 sm:p-6">
-      <div className="mx-auto max-w-3xl">
+    <main className="relative min-h-screen bg-background p-4 sm:p-6 overflow-hidden">
 
-        {/* HEADER */}
+      {/* Background */}
+      <div
+        className="absolute inset-0 bg-cover bg-center scale-105 animate-bgSlowZoom"
+        style={{ backgroundImage: "url('/lab.jpg')" }}
+      />
+
+      {/* overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60 backdrop-blur-[2px]" />
+
+      <div className="relative z-10 mx-auto max-w-3xl">
+
         <div className="mb-6 flex items-center justify-between">
           <div>
             <Button variant="ghost" size="sm" className="mb-1 gap-1 px-0" onClick={() => navigate("/")}>
@@ -150,7 +168,7 @@ const StudentDashboard = () => {
               <div>
                 <h1 className="text-2xl font-bold">{student.name}</h1>
                 <p className="font-mono text-sm text-muted-foreground">
-                  {student.labId} · {student.department}
+                  {student.lab_id} · {student.department}
                 </p>
               </div>
             </div>
@@ -239,7 +257,6 @@ const StudentDashboard = () => {
                         <TableHead>Duration</TableHead>
                       </TableRow>
                     </TableHeader>
-
                     <TableBody>
                       {sessions
                         .filter(s => s.check_out_time)
@@ -252,13 +269,13 @@ const StudentDashboard = () => {
                           </TableRow>
                         ))}
                     </TableBody>
-
                   </Table>
                 )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
       </div>
     </main>
   );
