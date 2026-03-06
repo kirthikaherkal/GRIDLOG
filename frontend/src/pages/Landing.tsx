@@ -28,11 +28,11 @@ const Landing = () => {
 
         {/* Heading */}
       <h1 className="text-5xl md:text-6xl font-black font-[Poppins] tracking-wide 
-text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 to-orange-600
+text-transparent bg-clip-text bg-gradient-to-r from-white to-white
 drop-shadow-xl">
           <br />
         
-          GRID LOG
+         <b> GRID LOG</b>
         </h1>
 
         {/* subtitle */}
