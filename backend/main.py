@@ -63,7 +63,7 @@ class Student(Base):
     usn = Column(String, unique=True)
     year = Column(String)
     department = Column(String)
-    startup = Column(String)  # ✅ NEW COLUMN
+    startup = Column(String)
     password = Column(String)
 
 
@@ -160,7 +160,6 @@ async def register(student: RegisterModel, db: AsyncSession = Depends(get_db)):
     if result.scalar_one_or_none():
         raise HTTPException(400, "USN already registered")
 
-    # Lab ID now random UUID-based
     lab_id = f"LAB-{str(uuid.uuid4())[:6].upper()}"
 
     hashed_password = pwd_context.hash(student.password[:72])
@@ -184,9 +183,16 @@ async def login(request: Request,
                 form_data: OAuth2PasswordRequestForm = Depends(),
                 db: AsyncSession = Depends(get_db)):
 
-    # ✅ College IP Restriction
-    client_ip = request.client.host
-    if not client_ip.startswith("10.10."):
+    # ✅ College Public IP Restriction (Render-safe)
+    ALLOWED_IP = "103.147.113.62"
+
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    else:
+        client_ip = request.client.host
+
+    if client_ip != ALLOWED_IP:
         raise HTTPException(403, "Connect to college internet")
 
     result = await db.execute(
