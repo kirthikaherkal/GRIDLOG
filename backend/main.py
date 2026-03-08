@@ -103,7 +103,7 @@ async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
 
-# ---------------- ADMIN AUTH DEP (ADDED ONLY) ----------------
+# ---------------- ADMIN AUTH DEP ----------------
 async def get_current_admin(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -129,103 +129,22 @@ async def startup():
                 db.add(Admin(username=ADMIN_USERNAME, password=hashed))
                 await db.commit()
 
-# ---------------- HEALTH CHECK ----------------
+# ---------------- HEALTH ----------------
 @app.get("/healthz")
 async def health():
     return {"status": "ok"}
 
-# ---------------- HELPERS ----------------
+# ---------------- TOKEN ----------------
 def create_access_token(data: dict):
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = data.copy()
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db)
-):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        lab_id = payload.get("sub")
-
-        result = await db.execute(
-            select(Student).where(Student.lab_id == lab_id)
-        )
-        user = result.scalar_one_or_none()
-
-        if not user:
-            raise HTTPException(401, "Invalid token")
-
-        return user
-
-    except JWTError:
-        raise HTTPException(401, "Invalid token")
-
-# ---------------- STUDENT AUTH ----------------
-@app.post("/register")
-async def register(student: RegisterModel, db: AsyncSession = Depends(get_db)):
-
-    result = await db.execute(select(Student).where(Student.usn == student.usn))
-    if result.scalar_one_or_none():
-        raise HTTPException(400, "USN already registered")
-
-    hashed_password = pwd_context.hash(student.password[:72])
-
-    new_student = Student(
-        name=student.name,
-        usn=student.usn,
-        year=student.year,
-        department=student.department,
-        startup=student.startup,
-        password=hashed_password
-    )
-
-    db.add(new_student)
-    await db.commit()
-    await db.refresh(new_student)
-
-    new_student.lab_id = str(new_student.id)
-    await db.commit()
-
-    return {"lab_id": new_student.lab_id}
-
-
-@app.post("/login")
-async def login(request: Request,
-                form_data: OAuth2PasswordRequestForm = Depends(),
-                db: AsyncSession = Depends(get_db)):
-
-    ALLOWED_IP = "103.147.113.62"
-
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        client_ip = forwarded.split(",")[0].strip()
-    else:
-        client_ip = request.client.host
-
-    if client_ip != ALLOWED_IP:
-        raise HTTPException(403, "Connect to college internet")
-
-    result = await db.execute(
-        select(Student).where(Student.lab_id == form_data.username)
-    )
-    student = result.scalar_one_or_none()
-
-    if not student or not pwd_context.verify(form_data.password[:72], student.password):
-        raise HTTPException(401, "Invalid credentials")
-
-    token = create_access_token({"sub": student.lab_id})
-
-    return {"access_token": token, "token_type": "bearer"}
-
 # ---------------- ADMIN LOGIN ----------------
 @app.post("/admin/login")
-async def admin_login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_db)
-):
+async def admin_login(form_data: OAuth2PasswordRequestForm = Depends(),
+                      db: AsyncSession = Depends(get_db)):
 
     result = await db.execute(
         select(Admin).where(Admin.username == form_data.username)
@@ -298,11 +217,12 @@ async def admin_active_sessions(db: AsyncSession = Depends(get_db)):
         for s, st in rows
     ]
 
-# ---------------- NEW ANALYTICS ENDPOINTS (ADDED ONLY) ----------------
+# ---------------- ANALYTICS ENDPOINTS ----------------
 
 @app.get("/admin/analytics/students")
 async def analytics_students(db: AsyncSession = Depends(get_db),
                              admin=Depends(get_current_admin)):
+
     result = await db.execute(
         select(Student.name, Student.department, func.count(Session.id))
         .join(Session, Student.lab_id == Session.student_lab_id)
@@ -318,3 +238,71 @@ async def analytics_students(db: AsyncSession = Depends(get_db),
         }
         for r in result.all()
     ]
+
+
+@app.get("/admin/analytics/regularity")
+async def analytics_regularity(db: AsyncSession = Depends(get_db),
+                               admin=Depends(get_current_admin)):
+
+    result = await db.execute(
+        select(func.count(Session.id), Student.lab_id)
+        .join(Student, Student.lab_id == Session.student_lab_id)
+        .group_by(Student.id)
+    )
+
+    regular = 0
+    irregular = 0
+
+    for count, _ in result.all():
+        if count >= 5:
+            regular += 1
+        else:
+            irregular += 1
+
+    return [
+        {"name": "Regular", "value": regular},
+        {"name": "Irregular", "value": irregular}
+    ]
+
+
+@app.get("/admin/analytics/departments")
+async def analytics_departments(db: AsyncSession = Depends(get_db),
+                                admin=Depends(get_current_admin)):
+
+    result = await db.execute(
+        select(Student.department, func.count(Session.id))
+        .join(Session, Student.lab_id == Session.student_lab_id)
+        .group_by(Student.department)
+    )
+
+    return [
+        {"dept": r[0], "sessions": r[1]}
+        for r in result.all()
+    ]
+
+
+@app.get("/admin/analytics/history")
+async def analytics_history(db: AsyncSession = Depends(get_db),
+                            admin=Depends(get_current_admin)):
+
+    result = await db.execute(
+        select(Student.name, Session.check_in_time,
+               Session.check_out_time, Session.description)
+        .join(Session, Student.lab_id == Session.student_lab_id)
+        .order_by(Session.check_in_time.desc())
+    )
+
+    history = {}
+
+    for name, check_in, check_out, desc in result.all():
+        hours = 0
+        if check_in and check_out:
+            hours = round((check_out - check_in).total_seconds() / 3600, 2)
+
+        history.setdefault(name, []).append({
+            "date": check_in.date() if check_in else None,
+            "hours": hours,
+            "desc": desc
+        })
+
+    return history
