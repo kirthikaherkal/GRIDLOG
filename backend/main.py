@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, sele
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 from pydantic import BaseModel
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import os
@@ -80,8 +81,8 @@ class Session(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_lab_id = Column(String, ForeignKey("students.lab_id"))
-    check_in_time = Column(DateTime, default=datetime.utcnow)
-    check_out_time = Column(DateTime, nullable=True)
+    check_in_time = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    check_out_time = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
     description = Column(Text, nullable=True)
 
 # ---------------- SCHEMAS ----------------
@@ -101,6 +102,16 @@ class CheckoutModel(BaseModel):
 async def get_db():
     async with AsyncSessionLocal() as session:
         yield session
+
+# ---------------- ADMIN AUTH DEP (ADDED ONLY) ----------------
+async def get_current_admin(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("role") != "admin":
+            raise HTTPException(403, "Not authorized")
+        return payload
+    except JWTError:
+        raise HTTPException(401, "Invalid token")
 
 # ---------------- INIT TABLES ----------------
 @app.on_event("startup")
@@ -160,25 +171,25 @@ async def register(student: RegisterModel, db: AsyncSession = Depends(get_db)):
     if result.scalar_one_or_none():
         raise HTTPException(400, "USN already registered")
 
-    result = await db.execute(select(func.max(Student.id)))
-    max_id = result.scalar()
-    next_id = 1 if max_id is None else max_id + 1
-    lab_id = str(next_id)
-
     hashed_password = pwd_context.hash(student.password[:72])
 
-    db.add(Student(
-        lab_id=lab_id,
+    new_student = Student(
         name=student.name,
         usn=student.usn,
         year=student.year,
         department=student.department,
         startup=student.startup,
         password=hashed_password
-    ))
+    )
 
+    db.add(new_student)
     await db.commit()
-    return {"lab_id": lab_id}
+    await db.refresh(new_student)
+
+    new_student.lab_id = str(new_student.id)
+    await db.commit()
+
+    return {"lab_id": new_student.lab_id}
 
 
 @app.post("/login")
@@ -186,7 +197,6 @@ async def login(request: Request,
                 form_data: OAuth2PasswordRequestForm = Depends(),
                 db: AsyncSession = Depends(get_db)):
 
-    # ✅ College Public IP Restriction (Render-safe)
     ALLOWED_IP = "103.147.113.62"
 
     forwarded = request.headers.get("x-forwarded-for")
@@ -232,66 +242,9 @@ async def admin_login(
 
     return {"access_token": token, "token_type": "bearer"}
 
-# ---------------- USER INFO ----------------
-@app.get("/me")
-async def get_me(current_user: Student = Depends(get_current_user)):
-    return {
-        "lab_id": current_user.lab_id,
-        "name": current_user.name,
-        "usn": current_user.usn,
-        "department": current_user.department,
-        "year": current_user.year,
-        "startup": current_user.startup
-    }
-
-# ---------------- SESSION SYSTEM ----------------
-@app.post("/checkin")
-async def checkin(current_user: Student = Depends(get_current_user),
-                  db: AsyncSession = Depends(get_db)):
-
-    session = Session(student_lab_id=current_user.lab_id)
-    db.add(session)
-    await db.commit()
-    await db.refresh(session)
-
-    return session
-
-
-@app.post("/checkout/{session_id}")
-async def checkout(session_id: int,
-                   body: CheckoutModel,
-                   current_user: Student = Depends(get_current_user),
-                   db: AsyncSession = Depends(get_db)):
-
-    result = await db.execute(select(Session).where(Session.id == session_id))
-    session = result.scalar_one_or_none()
-
-    if not session:
-        raise HTTPException(404, "Session not found")
-
-    session.check_out_time = datetime.utcnow()
-    session.description = body.description
-
-    await db.commit()
-    return {"message": "Checked out"}
-
-# ---------------- STUDENT SESSIONS ----------------
-@app.get("/my-sessions")
-async def my_sessions(current_user: Student = Depends(get_current_user),
-                      db: AsyncSession = Depends(get_db)):
-
-    result = await db.execute(
-        select(Session)
-        .where(Session.student_lab_id == current_user.lab_id)
-        .order_by(Session.check_in_time.desc())
-    )
-
-    return result.scalars().all()
-
-# ---------------- ADMIN ENDPOINTS ----------------
+# ---------------- EXISTING ADMIN ENDPOINTS ----------------
 @app.get("/admin/sessions")
 async def admin_sessions(db: AsyncSession = Depends(get_db)):
-
     result = await db.execute(
         select(Session, Student)
         .join(Student, Student.lab_id == Session.student_lab_id)
@@ -321,7 +274,6 @@ async def admin_sessions(db: AsyncSession = Depends(get_db)):
 
 @app.get("/admin/active")
 async def admin_active_sessions(db: AsyncSession = Depends(get_db)):
-
     result = await db.execute(
         select(Session, Student)
         .join(Student, Student.lab_id == Session.student_lab_id)
@@ -344,4 +296,25 @@ async def admin_active_sessions(db: AsyncSession = Depends(get_db)):
             "check_in_time": s.check_in_time,
         }
         for s, st in rows
+    ]
+
+# ---------------- NEW ANALYTICS ENDPOINTS (ADDED ONLY) ----------------
+
+@app.get("/admin/analytics/students")
+async def analytics_students(db: AsyncSession = Depends(get_db),
+                             admin=Depends(get_current_admin)):
+    result = await db.execute(
+        select(Student.name, Student.department, func.count(Session.id))
+        .join(Session, Student.lab_id == Session.student_lab_id)
+        .group_by(Student.id)
+    )
+
+    return [
+        {
+            "name": r[0],
+            "dept": r[1],
+            "sessions": r[2],
+            "type": "Regular" if r[2] >= 5 else "Irregular"
+        }
+        for r in result.all()
     ]

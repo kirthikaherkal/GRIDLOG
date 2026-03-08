@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   BarChart, Bar,
   PieChart, Pie, Cell,
@@ -12,47 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import KlsGridLogo from "@/components/KlsGridLogo";
 
-/* ================= MOCK DATA ================= */
-
-const studentActivity = [
-  { name: "Omkar", sessions: 12, type: "Regular", dept: "Mechanical" },
-  { name: "Kirthika", sessions: 9, type: "Regular", dept: "CSE" },
-  { name: "Rahul", sessions: 6, type: "Irregular", dept: "ECE" },
-  { name: "Asha", sessions: 4, type: "Irregular", dept: "Mechanical" },
-];
-
-const regularity = [
-  { name: "Regular", value: 14 },
-  { name: "Irregular", value: 6 },
-];
-
-const departmentUsage = [
-  { dept: "Mechanical", sessions: 25 },
-  { dept: "CSE", sessions: 18 },
-  { dept: "ECE", sessions: 12 },
-];
-
 const COLORS = ["#6366f1", "#22c55e", "#f97316", "#ef4444"];
 
-/* ===== MOCK SESSION HISTORY (WHAT YOU REQUESTED) ===== */
-
-const sessionHistory: any = {
-  Omkar: [
-    { date: "2026-03-01", hours: 3, desc: "Worked on rover SLAM calibration" },
-    { date: "2026-02-27", hours: 2, desc: "Sensor debugging and wiring" },
-  ],
-  Kirthika: [
-    { date: "2026-03-02", hours: 4, desc: "AI training dataset cleanup" },
-  ],
-  Rahul: [
-    { date: "2026-02-25", hours: 1, desc: "PCB testing" },
-  ],
-  Asha: [
-    { date: "2026-02-20", hours: 2, desc: "3D printing enclosure" },
-  ],
-};
-
-/* ================= PAGE ================= */
+const API_BASE = "https://gridlog-zgmu.onrender.com";
 
 const AdminAnalytics = () => {
   const navigate = useNavigate();
@@ -60,7 +22,45 @@ const AdminAnalytics = () => {
   const [expandedChart, setExpandedChart] = useState<string | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<any>(null);
 
-  /* ================= PROFILE VIEW (FIXED) ================= */
+  const [studentActivity, setStudentActivity] = useState<any[]>([]);
+  const [regularity, setRegularity] = useState<any[]>([]);
+  const [departmentUsage, setDepartmentUsage] = useState<any[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<any>({});
+
+  const token = localStorage.getItem("access_token");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const headers = {
+          Authorization: `Bearer ${token}`
+        };
+
+        const [studentsRes, regularityRes, deptRes, historyRes] =
+          await Promise.all([
+            fetch(`${API_BASE}/admin/analytics/students`, { headers }),
+            fetch(`${API_BASE}/admin/analytics/regularity`, { headers }),
+            fetch(`${API_BASE}/admin/analytics/departments`, { headers }),
+            fetch(`${API_BASE}/admin/analytics/history`, { headers })
+          ]);
+
+        const students = await studentsRes.json();
+        const regular = await regularityRes.json();
+        const departments = await deptRes.json();
+        const history = await historyRes.json();
+
+        setStudentActivity(students);
+        setRegularity(regular);
+        setDepartmentUsage(departments);
+        setSessionHistory(history);
+
+      } catch (err) {
+        console.error("Analytics fetch error:", err);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const ProfileView = ({ person }: any) => {
     const sessions = sessionHistory[person.name] || [];
@@ -87,8 +87,6 @@ const AdminAnalytics = () => {
       </Card>
     );
   };
-
-  /* ================= EXPANDED VIEW ================= */
 
   const ExpandedOverlay = () => {
     if (!expandedChart) return null;
@@ -158,7 +156,6 @@ const AdminAnalytics = () => {
     <main className="min-h-screen bg-background p-6">
       <div className="mx-auto max-w-6xl space-y-6">
 
-        {/* HEADER */}
         <div>
           <Button
             variant="ghost"
@@ -175,11 +172,8 @@ const AdminAnalytics = () => {
           </div>
         </div>
 
-        {/* ================= CHART GRID ================= */}
-
         <div className="grid gap-6 md:grid-cols-2">
 
-          {/* ACTIVE STUDENTS */}
           <Card
             className="border-2 cursor-pointer"
             onClick={()=>setExpandedChart("students")}
@@ -201,7 +195,6 @@ const AdminAnalytics = () => {
             </CardContent>
           </Card>
 
-          {/* REGULARITY */}
           <Card className="border-2">
             <CardHeader>
               <CardTitle>Student Regularity</CardTitle>
@@ -209,17 +202,10 @@ const AdminAnalytics = () => {
 
             <CardContent className="h-[300px]">
               <ResponsiveContainer>
-                <PieChart
-                  onClick={(e:any)=>{
-                    if(e?.activePayload){
-                      setSelectedEntity(e.activePayload[0].payload);
-                      setExpandedChart("regularity");
-                    }
-                  }}
-                >
+                <PieChart>
                   <Pie data={regularity} dataKey="value" outerRadius={100}>
                     {regularity.map((_, i) =>
-                      <Cell key={i} fill={COLORS[i]}/>
+                      <Cell key={i} fill={COLORS[i % COLORS.length]}/>
                     )}
                   </Pie>
                   <Tooltip/>
@@ -229,7 +215,6 @@ const AdminAnalytics = () => {
             </CardContent>
           </Card>
 
-          {/* DEPARTMENT */}
           <Card className="border-2">
             <CardHeader>
               <CardTitle>Department Usage</CardTitle>
@@ -240,12 +225,6 @@ const AdminAnalytics = () => {
                 <BarChart
                   layout="vertical"
                   data={departmentUsage}
-                  onClick={(e:any)=>{
-                    if(e?.activePayload){
-                      setSelectedEntity(e.activePayload[0].payload);
-                      setExpandedChart("department");
-                    }
-                  }}
                 >
                   <CartesianGrid strokeDasharray="3 3"/>
                   <XAxis type="number"/>

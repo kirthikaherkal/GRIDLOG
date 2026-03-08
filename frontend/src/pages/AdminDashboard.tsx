@@ -121,13 +121,13 @@ const AdminDashboard = () => {
           </div>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            {/* <Button
+            <Button
               size="sm"
               className="border-2 w-full md:w-auto"
               onClick={() => navigate("/admin/analytics")}
             >
               View Analytics
-            </Button> */}
+            </Button>
 
             <Button
               variant="outline"
