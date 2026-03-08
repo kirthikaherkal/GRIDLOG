@@ -185,7 +185,7 @@ const AdminAnalytics = () => {
 
           <div className="flex items-center gap-3">
             <KlsGridLogo variant="badge" height={28} />
-            <h1 className="text-2xl font-bold">Lab Analytics</h1>
+            <h1 className="text-2xl font-bold">Student Analytics</h1>
           </div>
         </div>
 

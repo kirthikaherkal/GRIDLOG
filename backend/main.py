@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import os
-import uuid
 
 # ---------------- ENV ----------------
 load_dotenv()
@@ -25,11 +24,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # ---------------- DB ----------------
 engine = create_async_engine(DATABASE_URL, echo=False)
-
-AsyncSessionLocal = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
-
+AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 
 # ---------------- APP ----------------
@@ -52,7 +47,7 @@ pwd_context = CryptContext(
     bcrypt__rounds=12
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="admin/login")
 
 # ---------------- MODELS ----------------
 class Student(Base):
@@ -82,7 +77,7 @@ class Session(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_lab_id = Column(String, ForeignKey("students.lab_id"))
     check_in_time = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
-    check_out_time = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    check_out_time = Column(DateTime, nullable=True)
     description = Column(Text, nullable=True)
 
 # ---------------- SCHEMAS ----------------
@@ -161,9 +156,11 @@ async def admin_login(form_data: OAuth2PasswordRequestForm = Depends(),
 
     return {"access_token": token, "token_type": "bearer"}
 
-# ---------------- EXISTING ADMIN ENDPOINTS ----------------
+# ---------------- ADMIN ENDPOINTS ----------------
 @app.get("/admin/sessions")
-async def admin_sessions(db: AsyncSession = Depends(get_db)):
+async def admin_sessions(db: AsyncSession = Depends(get_db),
+                         admin=Depends(get_current_admin)):
+
     result = await db.execute(
         select(Session, Student)
         .join(Student, Student.lab_id == Session.student_lab_id)
@@ -192,11 +189,13 @@ async def admin_sessions(db: AsyncSession = Depends(get_db)):
 
 
 @app.get("/admin/active")
-async def admin_active_sessions(db: AsyncSession = Depends(get_db)):
+async def admin_active_sessions(db: AsyncSession = Depends(get_db),
+                                admin=Depends(get_current_admin)):
+
     result = await db.execute(
         select(Session, Student)
         .join(Student, Student.lab_id == Session.student_lab_id)
-        .where(Session.check_out_time == None)
+        .where(Session.check_out_time.is_(None))
     )
 
     rows = result.all()
@@ -218,14 +217,13 @@ async def admin_active_sessions(db: AsyncSession = Depends(get_db)):
     ]
 
 # ---------------- ANALYTICS ENDPOINTS ----------------
-
 @app.get("/admin/analytics/students")
 async def analytics_students(db: AsyncSession = Depends(get_db),
                              admin=Depends(get_current_admin)):
 
     result = await db.execute(
         select(Student.name, Student.department, func.count(Session.id))
-        .join(Session, Student.lab_id == Session.student_lab_id)
+        .outerjoin(Session, Student.lab_id == Session.student_lab_id)
         .group_by(Student.id)
     )
 
@@ -239,21 +237,21 @@ async def analytics_students(db: AsyncSession = Depends(get_db),
         for r in result.all()
     ]
 
-
 @app.get("/admin/analytics/regularity")
 async def analytics_regularity(db: AsyncSession = Depends(get_db),
                                admin=Depends(get_current_admin)):
 
     result = await db.execute(
-        select(func.count(Session.id), Student.lab_id)
-        .join(Student, Student.lab_id == Session.student_lab_id)
+        select(func.count(Session.id))
+        .select_from(Student)
+        .outerjoin(Session, Student.lab_id == Session.student_lab_id)
         .group_by(Student.id)
     )
 
     regular = 0
     irregular = 0
 
-    for count, _ in result.all():
+    for (count,) in result.all():
         if count >= 5:
             regular += 1
         else:
@@ -271,7 +269,7 @@ async def analytics_departments(db: AsyncSession = Depends(get_db),
 
     result = await db.execute(
         select(Student.department, func.count(Session.id))
-        .join(Session, Student.lab_id == Session.student_lab_id)
+        .outerjoin(Session, Student.lab_id == Session.student_lab_id)
         .group_by(Student.department)
     )
 
