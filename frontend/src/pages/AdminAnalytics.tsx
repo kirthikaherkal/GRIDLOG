@@ -13,7 +13,6 @@ import { ArrowLeft } from "lucide-react";
 import KlsGridLogo from "@/components/KlsGridLogo";
 
 const COLORS = ["#6366f1", "#22c55e", "#f97316", "#ef4444"];
-
 const API_BASE = "https://gridlog-zgmu.onrender.com";
 
 const AdminAnalytics = () => {
@@ -30,29 +29,47 @@ const AdminAnalytics = () => {
   const token = localStorage.getItem("access_token");
 
   useEffect(() => {
+    if (!token) {
+      navigate("/admin/login");
+      return;
+    }
+
     const fetchData = async () => {
       try {
         const headers = {
           Authorization: `Bearer ${token}`
         };
 
-        const [studentsRes, regularityRes, deptRes, historyRes] =
-          await Promise.all([
-            fetch(`${API_BASE}/admin/analytics/students`, { headers }),
-            fetch(`${API_BASE}/admin/analytics/regularity`, { headers }),
-            fetch(`${API_BASE}/admin/analytics/departments`, { headers }),
-            fetch(`${API_BASE}/admin/analytics/history`, { headers })
-          ]);
+        const endpoints = [
+          "/admin/analytics/students",
+          "/admin/analytics/regularity",
+          "/admin/analytics/departments",
+          "/admin/analytics/history"
+        ];
 
-        const students = await studentsRes.json();
-        const regular = await regularityRes.json();
-        const departments = await deptRes.json();
-        const history = await historyRes.json();
+        const responses = await Promise.all(
+          endpoints.map(ep =>
+            fetch(`${API_BASE}${ep}`, { headers })
+          )
+        );
 
-        setStudentActivity(students);
-        setRegularity(regular);
-        setDepartmentUsage(departments);
-        setSessionHistory(history);
+        // If any endpoint returns 401 → token invalid
+        if (responses.some(r => r.status === 401)) {
+          localStorage.removeItem("access_token");
+          navigate("/admin/login");
+          return;
+        }
+
+        const data = await Promise.all(
+          responses.map(r => r.ok ? r.json() : null)
+        );
+
+        const [students, regular, departments, history] = data;
+
+        setStudentActivity(Array.isArray(students) ? students : []);
+        setRegularity(Array.isArray(regular) ? regular : []);
+        setDepartmentUsage(Array.isArray(departments) ? departments : []);
+        setSessionHistory(history && typeof history === "object" ? history : {});
 
       } catch (err) {
         console.error("Analytics fetch error:", err);
@@ -60,10 +77,10 @@ const AdminAnalytics = () => {
     };
 
     fetchData();
-  }, []);
+  }, [token, navigate]);
 
   const ProfileView = ({ person }: any) => {
-    const sessions = sessionHistory[person.name] || [];
+    const sessions = sessionHistory?.[person.name] || [];
 
     return (
       <Card className="mt-4 border-2">
@@ -126,7 +143,7 @@ const AdminAnalytics = () => {
             </CardHeader>
 
             <CardContent className="max-h-[400px] overflow-y-auto space-y-2">
-              {dataset.map((item, i) => (
+              {Array.isArray(dataset) && dataset.map((item, i) => (
                 <div
                   key={i}
                   className="flex items-center justify-between border rounded-lg p-3"
@@ -222,10 +239,7 @@ const AdminAnalytics = () => {
 
             <CardContent className="h-[300px]">
               <ResponsiveContainer>
-                <BarChart
-                  layout="vertical"
-                  data={departmentUsage}
-                >
+                <BarChart layout="vertical" data={departmentUsage}>
                   <CartesianGrid strokeDasharray="3 3"/>
                   <XAxis type="number"/>
                   <YAxis dataKey="dept" type="category"/>
