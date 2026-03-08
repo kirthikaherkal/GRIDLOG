@@ -26,7 +26,7 @@ const AdminAnalytics = () => {
   const [departmentUsage, setDepartmentUsage] = useState<any[]>([]);
   const [sessionHistory, setSessionHistory] = useState<any>({});
 
-  const token = localStorage.getItem("access_token");
+  const token = localStorage.getItem("admin_token");
 
   useEffect(() => {
     if (!token) {
