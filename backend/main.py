@@ -136,6 +136,56 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+# ---------------- STUDENT AUTH ----------------
+@app.post("/register")
+async def register(student: RegisterModel, db: AsyncSession = Depends(get_db)):
+
+    result = await db.execute(select(Student).where(Student.usn == student.usn))
+    if result.scalar_one_or_none():
+        raise HTTPException(400, "USN already registered")
+
+    hashed_password = pwd_context.hash(student.password[:72])
+
+    new_student = Student(
+        name=student.name,
+        usn=student.usn,
+        year=student.year,
+        department=student.department,
+        startup=student.startup,
+        password=hashed_password
+    )
+
+    db.add(new_student)
+    await db.commit()
+    await db.refresh(new_student)
+
+    new_student.lab_id = str(new_student.id)
+    await db.commit()
+
+    return {"lab_id": new_student.lab_id}
+
+
+@app.post("/login")
+async def student_login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
+):
+
+    result = await db.execute(
+        select(Student).where(Student.lab_id == form_data.username)
+    )
+    student = result.scalar_one_or_none()
+
+    if not student or not pwd_context.verify(form_data.password[:72], student.password):
+        raise HTTPException(401, "Invalid credentials")
+
+    token = create_access_token({
+        "sub": student.lab_id,
+        "role": "student"
+    })
+
+    return {"access_token": token, "token_type": "bearer"}
+
 # ---------------- ADMIN LOGIN ----------------
 @app.post("/admin/login")
 async def admin_login(form_data: OAuth2PasswordRequestForm = Depends(),
@@ -222,7 +272,13 @@ async def analytics_students(db: AsyncSession = Depends(get_db),
                              admin=Depends(get_current_admin)):
 
     result = await db.execute(
-        select(Student.name, Student.department, func.count(Session.id))
+        select(
+            Student.name,
+            Student.department,
+            Student.year,
+            Student.startup,
+            func.count(Session.id)
+        )
         .outerjoin(Session, Student.lab_id == Session.student_lab_id)
         .group_by(Student.id)
     )
@@ -231,50 +287,11 @@ async def analytics_students(db: AsyncSession = Depends(get_db),
         {
             "name": r[0],
             "dept": r[1],
-            "sessions": r[2],
-            "type": "Regular" if r[2] >= 5 else "Irregular"
+            "year": r[2],
+            "startup": r[3],
+            "sessions": r[4],
+            "type": "Regular" if r[4] >= 5 else "Irregular"
         }
-        for r in result.all()
-    ]
-
-@app.get("/admin/analytics/regularity")
-async def analytics_regularity(db: AsyncSession = Depends(get_db),
-                               admin=Depends(get_current_admin)):
-
-    result = await db.execute(
-        select(func.count(Session.id))
-        .select_from(Student)
-        .outerjoin(Session, Student.lab_id == Session.student_lab_id)
-        .group_by(Student.id)
-    )
-
-    regular = 0
-    irregular = 0
-
-    for (count,) in result.all():
-        if count >= 5:
-            regular += 1
-        else:
-            irregular += 1
-
-    return [
-        {"name": "Regular", "value": regular},
-        {"name": "Irregular", "value": irregular}
-    ]
-
-
-@app.get("/admin/analytics/departments")
-async def analytics_departments(db: AsyncSession = Depends(get_db),
-                                admin=Depends(get_current_admin)):
-
-    result = await db.execute(
-        select(Student.department, func.count(Session.id))
-        .outerjoin(Session, Student.lab_id == Session.student_lab_id)
-        .group_by(Student.department)
-    )
-
-    return [
-        {"dept": r[0], "sessions": r[1]}
         for r in result.all()
     ]
 

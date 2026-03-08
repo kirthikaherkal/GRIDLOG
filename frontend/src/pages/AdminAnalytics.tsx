@@ -66,10 +66,20 @@ const AdminAnalytics = () => {
     return (
       <Card className="mt-4 border-2">
         <CardHeader>
-          <CardTitle>{person.name} — Work History</CardTitle>
+          <CardTitle>{person.name} — Profile & Work History</CardTitle>
         </CardHeader>
 
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
+
+          {/* 🔹 Added Profile Info */}
+          <div className="border rounded-lg p-3 space-y-1">
+            <p><b>Year:</b> {person.year}</p>
+            <p><b>Department:</b> {person.dept}</p>
+            <p><b>Startup:</b> {person.startup}</p>
+            <p><b>Total Sessions:</b> {person.sessions}</p>
+          </div>
+
+          {/* 🔹 Work History */}
           {sessions.length === 0 ? (
             <p>No activity recorded.</p>
           ) : (
@@ -81,6 +91,7 @@ const AdminAnalytics = () => {
               </div>
             ))
           )}
+
         </CardContent>
       </Card>
     );
