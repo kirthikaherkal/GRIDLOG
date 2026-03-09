@@ -186,6 +186,55 @@ async def student_login(
 
     return {"access_token": token, "token_type": "bearer"}
 
+async def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if payload.get("role") != "student":
+            raise HTTPException(403, "Not authorized")
+
+        lab_id = payload.get("sub")
+
+        result = await db.execute(
+            select(Student).where(Student.lab_id == lab_id)
+        )
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(401, "Invalid token")
+
+        return user
+
+    except JWTError:
+        raise HTTPException(401, "Invalid token")
+    
+
+@app.get("/me")
+async def get_me(current_user: Student = Depends(get_current_user)):
+    return {
+        "lab_id": current_user.lab_id,
+        "name": current_user.name,
+        "usn": current_user.usn,
+        "department": current_user.department,
+        "year": current_user.year,
+        "startup": current_user.startup
+    }
+
+@app.get("/my-sessions")
+async def my_sessions(current_user: Student = Depends(get_current_user),
+                      db: AsyncSession = Depends(get_db)):
+
+    result = await db.execute(
+        select(Session)
+        .where(Session.student_lab_id == current_user.lab_id)
+        .order_by(Session.check_in_time.desc())
+    )
+
+    return result.scalars().all()
+
 # ---------------- ADMIN LOGIN ----------------
 @app.post("/admin/login")
 async def admin_login(form_data: OAuth2PasswordRequestForm = Depends(),
