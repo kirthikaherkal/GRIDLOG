@@ -235,6 +235,58 @@ async def my_sessions(current_user: Student = Depends(get_current_user),
 
     return result.scalars().all()
 
+@app.post("/checkin")
+async def checkin(current_user: Student = Depends(get_current_user),
+                  db: AsyncSession = Depends(get_db)):
+
+    # prevent double check-in
+    result = await db.execute(
+        select(Session)
+        .where(Session.student_lab_id == current_user.lab_id)
+        .where(Session.check_out_time.is_(None))
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        raise HTTPException(400, "Already checked in")
+
+    new_session = Session(
+        student_lab_id=current_user.lab_id
+    )
+
+    db.add(new_session)
+    await db.commit()
+    await db.refresh(new_session)
+
+    return new_session
+
+
+@app.post("/checkout/{session_id}")
+async def checkout(session_id: int,
+                   body: CheckoutModel,
+                   current_user: Student = Depends(get_current_user),
+                   db: AsyncSession = Depends(get_db)):
+
+    result = await db.execute(
+        select(Session)
+        .where(Session.id == session_id)
+        .where(Session.student_lab_id == current_user.lab_id)
+    )
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(404, "Session not found")
+
+    if session.check_out_time is not None:
+        raise HTTPException(400, "Already checked out")
+
+    session.check_out_time = datetime.now(ZoneInfo("Asia/Kolkata"))
+    session.description = body.description
+
+    await db.commit()
+
+    return {"message": "Checked out successfully"}
+
 # ---------------- ADMIN LOGIN ----------------
 @app.post("/admin/login")
 async def admin_login(form_data: OAuth2PasswordRequestForm = Depends(),
