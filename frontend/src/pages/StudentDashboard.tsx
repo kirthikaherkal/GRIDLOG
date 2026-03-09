@@ -94,11 +94,21 @@ const StudentDashboard = () => {
     if (!token) return;
 
     const res = await fetch(`${API_BASE}/checkin`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` }
-    });
+  method: "POST",
+  headers: { Authorization: `Bearer ${token}` }
+});
 
-    const session = await res.json();
+if (!res.ok) {
+  const err = await res.json();
+  toast({
+    title: "Error",
+    description: err.detail || "Check-in failed",
+    variant: "destructive"
+  });
+  return;
+}
+
+const session = await res.json();
 
     setActive(session);
     setSessions((prev) => [session, ...prev]);
@@ -110,31 +120,43 @@ const StudentDashboard = () => {
   };
 
   const handleCheckOut = async () => {
-    if (!active) return;
+  if (!active) return;
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
+  const token = localStorage.getItem("token");
+  if (!token) return;
 
-    await fetch(`${API_BASE}/checkout/${active.id}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ description }),
+  const res = await fetch(`${API_BASE}/checkout/${active.id}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({ description }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+
+    toast({
+      title: "Error",
+      description: err?.detail || "Checkout failed",
+      variant: "destructive"
     });
 
-    const updatedSessions = await fetch(
-      `${API_BASE}/my-sessions`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    ).then(r => r.json());
+    return; // 🚨 STOP HERE if backend failed
+  }
 
-    setSessions(updatedSessions);
-    setActive(null);
-    setDescription("");
+  const updatedSessions = await fetch(
+    `${API_BASE}/my-sessions`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  ).then(r => r.json());
 
-    toast({ title: "Checked out!" });
-  };
+  setSessions(updatedSessions);
+  setActive(null);
+  setDescription("");
+
+  toast({ title: "Checked out!" });
+};
 
   const handleLogout = () => {
     localStorage.removeItem("token");

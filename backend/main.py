@@ -17,6 +17,8 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 SECRET_KEY = os.getenv("JWT_SECRET")
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET not set")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
@@ -235,7 +237,18 @@ async def my_sessions(current_user: Student = Depends(get_current_user),
         .order_by(Session.check_in_time.desc())
     )
 
-    return result.scalars().all()
+    sessions = result.scalars().all()
+
+    return [
+        {
+            "id": s.id,
+            "student_lab_id": s.student_lab_id,
+            "check_in_time": s.check_in_time,
+            "check_out_time": s.check_out_time,
+            "description": s.description
+        }
+        for s in sessions
+    ]
 
 @app.post("/checkin")
 async def checkin(current_user: Student = Depends(get_current_user),
