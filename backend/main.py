@@ -51,7 +51,8 @@ pwd_context = CryptContext(
     bcrypt__rounds=12
 )
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="admin/login")
+student_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+admin_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="admin/login")
 
 # ---------------- MODELS ----------------
 class Student(Base):
@@ -103,7 +104,7 @@ async def get_db():
         yield session
 
 # ---------------- ADMIN AUTH DEP ----------------
-async def get_current_admin(token: str = Depends(oauth2_scheme)):
+async def get_current_admin(token: str = Depends(admin_oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("role") != "admin":
@@ -135,7 +136,9 @@ async def health():
 
 # ---------------- TOKEN ------------------
 def create_access_token(data: dict):
-    expire = datetime.now(IST) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+    )
     to_encode = data.copy()
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -192,7 +195,7 @@ async def student_login(
     return {"access_token": token, "token_type": "bearer"}
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: str = Depends(student_oauth2_scheme),
     db: AsyncSession = Depends(get_db)
 ):
     try:
