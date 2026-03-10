@@ -24,6 +24,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
+IST = ZoneInfo("Asia/Kolkata")
+
 # ---------------- DB ----------------
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -80,7 +82,7 @@ class Session(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     student_lab_id = Column(String, ForeignKey("students.lab_id"))
-    check_in_time = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Asia/Kolkata")))
+    check_in_time = Column(DateTime, default=lambda: datetime.now(IST))
     check_out_time = Column(DateTime, nullable=True)
     description = Column(Text, nullable=True)
 
@@ -133,12 +135,13 @@ async def startup():
 async def health():
     return {"status": "ok"}
 
-# ---------------- TOKEN ----------------
+# ---------------- TOKEN ------------------
 def create_access_token(data: dict):
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(IST) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = data.copy()
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
 
 # ---------------- STUDENT AUTH ----------------
 @app.post("/register")
@@ -266,14 +269,21 @@ async def checkin(current_user: Student = Depends(get_current_user),
         raise HTTPException(400, "Already checked in")
 
     new_session = Session(
-        student_lab_id=current_user.lab_id
+        student_lab_id=current_user.lab_id,
+        check_in_time=datetime.now(IST)
     )
 
     db.add(new_session)
     await db.commit()
     await db.refresh(new_session)
 
-    return new_session
+    return {
+        "id": new_session.id,
+        "student_lab_id": new_session.student_lab_id,
+        "check_in_time": new_session.check_in_time,
+        "check_out_time": new_session.check_out_time,
+        "description": new_session.description
+    }
 
 
 @app.post("/checkout/{session_id}")
@@ -295,7 +305,7 @@ async def checkout(session_id: int,
     if session.check_out_time is not None:
         raise HTTPException(400, "Already checked out")
 
-    session.check_out_time = datetime.now(ZoneInfo("Asia/Kolkata"))
+    session.check_out_time = datetime.now(IST)
     session.description = body.description
 
     await db.commit()

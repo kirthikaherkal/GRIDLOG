@@ -57,12 +57,11 @@ const StudentDashboard = () => {
       return;
     }
 
-    // Load current user
     fetch(`${API_BASE}/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(r => {
-        if (!r.ok) throw new Error();
+      .then(async r => {
+        if (!r.ok) throw new Error("Auth failed");
         return r.json();
       })
       .then(data => setStudent(data))
@@ -71,17 +70,26 @@ const StudentDashboard = () => {
         navigate("/student");
       });
 
-    // Load sessions
     fetch(`${API_BASE}/my-sessions`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(r => r.json())
+      .then(async r => {
+        if (!r.ok) throw new Error("Failed loading sessions");
+        return r.json();
+      })
       .then(data => {
         setSessions(data);
         const activeSession = data.find(
           (s: Session) => s.check_out_time === null
         );
         setActive(activeSession || null);
+      })
+      .catch(() => {
+        toast({
+          title: "Error",
+          description: "Failed to load sessions",
+          variant: "destructive"
+        });
       });
 
   }, [navigate]);
@@ -93,70 +101,103 @@ const StudentDashboard = () => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    const res = await fetch(`${API_BASE}/checkin`, {
-  method: "POST",
-  headers: { Authorization: `Bearer ${token}` }
-});
+    try {
+      const res = await fetch(`${API_BASE}/checkin`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-if (!res.ok) {
-  const err = await res.json();
-  toast({
-    title: "Error",
-    description: err.detail || "Check-in failed",
-    variant: "destructive"
-  });
-  return;
-}
+      if (!res.ok) {
+        const text = await res.text();
+        let err;
+        try {
+          err = JSON.parse(text);
+        } catch {
+          err = { detail: text };
+        }
 
-const session = await res.json();
+        toast({
+          title: "Error",
+          description: err.detail || "Check-in failed",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    setActive(session);
-    setSessions((prev) => [session, ...prev]);
+      const session = await res.json();
 
-    toast({
-      title: "Checked in!",
-      description: `Time: ${format(new Date(session.check_in_time), "hh:mm a")}`,
-    });
+      setActive(session);
+      setSessions((prev) => [session, ...prev]);
+
+      toast({
+        title: "Checked in!",
+        description: `Time: ${format(new Date(session.check_in_time), "hh:mm a")}`,
+      });
+
+    } catch {
+      toast({
+        title: "Network Error",
+        description: "Server unreachable",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleCheckOut = async () => {
-  if (!active) return;
+    if (!active) return;
 
-  const token = localStorage.getItem("token");
-  if (!token) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
-  const res = await fetch(`${API_BASE}/checkout/${active.id}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({ description }),
-  });
+    try {
+      const res = await fetch(`${API_BASE}/checkout/${active.id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ description }),
+      });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => null);
+      if (!res.ok) {
+        const text = await res.text();
+        let err;
+        try {
+          err = JSON.parse(text);
+        } catch {
+          err = { detail: text };
+        }
 
-    toast({
-      title: "Error",
-      description: err?.detail || "Checkout failed",
-      variant: "destructive"
-    });
+        toast({
+          title: "Error",
+          description: err.detail || "Checkout failed",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    return; // 🚨 STOP HERE if backend failed
-  }
+      const updatedSessions = await fetch(
+        `${API_BASE}/my-sessions`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      ).then(async r => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      });
 
-  const updatedSessions = await fetch(
-    `${API_BASE}/my-sessions`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  ).then(r => r.json());
+      setSessions(updatedSessions);
+      setActive(null);
+      setDescription("");
 
-  setSessions(updatedSessions);
-  setActive(null);
-  setDescription("");
+      toast({ title: "Checked out!" });
 
-  toast({ title: "Checked out!" });
-};
+    } catch {
+      toast({
+        title: "Network Error",
+        description: "Server unreachable",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -168,13 +209,11 @@ const session = await res.json();
   return (
     <main className="relative min-h-screen bg-background p-4 sm:p-6 overflow-hidden">
 
-      {/* Background */}
       <div
         className="absolute inset-0 bg-cover bg-center scale-105 animate-bgSlowZoom"
         style={{ backgroundImage: "url('/lab.jpg')" }}
       />
 
-      {/* overlay */}
       <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60 backdrop-blur-[2px]" />
 
       <div className="relative z-10 mx-auto max-w-3xl">
